@@ -364,7 +364,8 @@ identify_landing_zones = forced_landing_zones
 def calculate_corridor_completeness(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Calculate completeness score and ratio for a corridor evaluation by checking input statuses.
-    Counts total input data points/fields and how many are absent/UNKNOWN/FAILED.
+    Counts total input data points/fields and identifies genuine UNKNOWN/FAILED degradation.
+    Authoritative 'absent' status (hazard evaluated and confirmed absent) is considered complete.
     """
     total_inputs = 0
     incomplete_inputs = 0
@@ -374,13 +375,16 @@ def calculate_corridor_completeness(data: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(mireye_list, list):
         for pt in mireye_list:
             if isinstance(pt, dict):
+                m_st = str(pt.get("status", "")).upper()
                 for f_key in ["nearest_substation_distance_m", "nearest_transmission_line_distance_m", "slope_degrees"]:
-                    f_obj = pt.get(f_key)
                     total_inputs += 1
+                    if m_st in ("UNKNOWN", "FAILED"):
+                        incomplete_inputs += 1
+                        continue
+                    f_obj = pt.get(f_key)
                     if isinstance(f_obj, dict):
                         st = str(f_obj.get("status", "")).lower()
-                        val = f_obj.get("value")
-                        if st in ("absent", "unknown", "failed") or val is None:
+                        if st in ("unknown", "failed"):
                             incomplete_inputs += 1
                     elif f_obj is None:
                         incomplete_inputs += 1
@@ -392,7 +396,7 @@ def calculate_corridor_completeness(data: Dict[str, Any]) -> Dict[str, Any]:
             total_inputs += 1
             if isinstance(pt, dict):
                 st = str(pt.get("status", "")).upper()
-                if st in ("ABSENT", "UNKNOWN", "FAILED"):
+                if st in ("UNKNOWN", "FAILED"):
                     incomplete_inputs += 1
             else:
                 incomplete_inputs += 1
@@ -404,7 +408,7 @@ def calculate_corridor_completeness(data: Dict[str, Any]) -> Dict[str, Any]:
             total_inputs += 1
             if isinstance(pt, dict):
                 st = str(pt.get("status", "")).upper()
-                if st in ("ABSENT", "UNKNOWN", "FAILED"):
+                if st in ("UNKNOWN", "FAILED"):
                     incomplete_inputs += 1
             else:
                 incomplete_inputs += 1
@@ -414,7 +418,7 @@ def calculate_corridor_completeness(data: Dict[str, Any]) -> Dict[str, Any]:
     total_inputs += 1
     if isinstance(wind_obj, dict):
         st = str(wind_obj.get("status", "")).upper()
-        if not wind_obj or st in ("ABSENT", "UNKNOWN", "FAILED", "MISSING"):
+        if not wind_obj or st in ("UNKNOWN", "FAILED", "MISSING"):
             incomplete_inputs += 1
     else:
         incomplete_inputs += 1

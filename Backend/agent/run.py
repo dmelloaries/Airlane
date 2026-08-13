@@ -289,6 +289,14 @@ def render_terminal_report(result: Dict[str, Any]):
         print(f"{name:<28} | {dist_str:<9} | {tier_str:<8} | {haz_str:<8} | {obs_str:<9} | {wind_str:<6} | {lz_str}")
     print("-" * 78)
 
+    # Corridor Completeness & Data Quality
+    print("\nCORRIDOR COMPLETENESS & DATA QUALITY:")
+    for cid, c_comp in comp.get("completeness", {}).items():
+        c_name = "Corridor A (Direct)" if cid == "corridor_a" else ("Corridor B (Right)" if cid == "corridor_b" else "Corridor C (Left)")
+        ratio_pct = c_comp.get("completeness_ratio", 1.0) * 100
+        print(f"  • {c_name:<26}: {ratio_pct:.1f}% ratio ({c_comp.get('complete_inputs')}/{c_comp.get('total_inputs')} complete) | "
+              f"Incomplete: {c_comp.get('incomplete_inputs', 0)} | Quality: {c_comp.get('confidence_level', 'HIGH')}")
+
     # Approved Route Verdict Card
     conf = sc.get("confidence_score", 0.95)
     conf_label = "HIGH" if conf >= 0.9 else ("MEDIUM" if conf >= 0.7 else "LOW")
