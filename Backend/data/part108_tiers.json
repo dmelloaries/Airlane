@@ -1,0 +1,40 @@
+{
+  "description": "Part 108 BVLOS Ground Risk Tiers based on Census Tract Population Density (people per square mile)",
+  "tiers": [
+    {
+      "tier": "Tier 1",
+      "name": "Sparsely Populated / Rural",
+      "min_density_sq_mi": 0,
+      "max_density_sq_mi": 500,
+      "description": "Unpopulated or agricultural land. Lowest ground hazard risk."
+    },
+    {
+      "tier": "Tier 2",
+      "name": "Low Density Suburban",
+      "min_density_sq_mi": 500,
+      "max_density_sq_mi": 2000,
+      "description": "Suburban residential and light commercial. Moderate ground hazard risk."
+    },
+    {
+      "tier": "Tier 3",
+      "name": "Medium Density Residential",
+      "min_density_sq_mi": 2000,
+      "max_density_sq_mi": 5000,
+      "description": "Medium urban / dense residential zones. Increased mitigation required."
+    },
+    {
+      "tier": "Tier 4",
+      "name": "High Density Urban",
+      "min_density_sq_mi": 5000,
+      "max_density_sq_mi": 12000,
+      "description": "Dense urban commercial and residential corridors. High risk."
+    },
+    {
+      "tier": "Tier 5",
+      "name": "Dense Urban Core",
+      "min_density_sq_mi": 12000,
+      "max_density_sq_mi": 999999,
+      "description": "Metropolitan downtown core / critical infrastructure. Maximum ground risk."
+    }
+  ]
+}
