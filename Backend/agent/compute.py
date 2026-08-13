@@ -153,6 +153,7 @@ def obstacle_risk(
                 "cruise_altitude_ft": cruise_altitude_ft,
                 "clearance_status": "INADEQUATE_VERTICAL_CLEARANCE",
                 "severity": "HIGH",
+                "source": "Mireye Earth API",
                 "description": f"Transmission line ({trans_kv:.0f}kV) within {trans_dist:.0f}m at mile {mile_marker:.2f}. Cruise altitude {cruise_altitude_ft:.0f}ft AGL requires heightened clearance."
             })
         elif sub_status != "absent" and sub_dist < 200.0:
@@ -167,6 +168,7 @@ def obstacle_risk(
                 "cruise_altitude_ft": cruise_altitude_ft,
                 "clearance_status": "GROUND_INFRASTRUCTURE_HAZARD",
                 "severity": "MEDIUM",
+                "source": "Mireye Earth API",
                 "description": f"Substation within {sub_dist:.0f}m at mile {mile_marker:.2f}."
             })
 
@@ -225,7 +227,8 @@ def corridor_tier(
         "description": worst_point_info.get("tier_description", "") if worst_point_info else "",
         "max_density_sq_mi": round(max_density, 1),
         "worst_sample_index": worst_point_info.get("sample_index", 0) if worst_point_info else 0,
-        "tier_histogram": tier_counts
+        "tier_histogram": tier_counts,
+        "source": "US Census Bureau ACS5"
     }
 
 
@@ -333,6 +336,7 @@ def forced_landing_zones(
                 "suitability": "HIGH",
                 "slope_degrees": round(slope, 1),
                 "infrastructure_clearance_m": round(clearance, 1),
+                "source": "Mireye Earth API",
                 "description": f"Emergency forced landing spot at mile {mile_marker:.2f} with {clearance:.0f}m infrastructure clearance and {slope:.1f}° slope."
             })
 
