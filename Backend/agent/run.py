@@ -85,8 +85,10 @@ async def execute_pipeline(
     # STEP 0: Geocode Launch and Destination
     # -------------------------------------------------------------------------
     log("▶ [Step 0/5] Resolving Launch & Destination Coordinates...")
+    t_geo_0 = time.time()
     geo_launch = geocode_address(launch_input)
     geo_dest = geocode_address(destination_input)
+    t_geo_1 = time.time()
 
     launch_coord = (geo_launch["lat"], geo_launch["lng"])
     dest_coord = (geo_dest["lat"], geo_dest["lng"])
@@ -94,12 +96,14 @@ async def execute_pipeline(
 
     log(f"  • Launch:      {geo_launch['normalized_address']} -> ({launch_coord[0]:.4f}, {launch_coord[1]:.4f})")
     log(f"  • Destination: {geo_dest['normalized_address']} -> ({dest_coord[0]:.4f}, {dest_coord[1]:.4f})")
-    log(f"  • Distance:    {direct_dist_m:.0f}m ({direct_dist_m / 1609.34:.2f} miles)\n")
+    log(f"  • Distance:    {direct_dist_m:.0f}m ({direct_dist_m / 1609.34:.2f} miles)")
+    log(f"  ✓ Geocoding completed in {t_geo_1 - t_geo_0:.2f}s.\n")
 
     # -------------------------------------------------------------------------
     # STEP 1: Generate 3 Geometric Corridors
     # -------------------------------------------------------------------------
     log("▶ [Step 1/5] Generating 3 Geometric Candidate Corridors (Phase 1)...")
+    t_gen_0 = time.time()
     corridors = generate_candidates(
         launch=launch_coord,
         destination=dest_coord,
@@ -107,9 +111,11 @@ async def execute_pipeline(
         sample_spacing_m=spacing_m
     )
     corr_a, corr_b, corr_c = corridors[0], corridors[1], corridors[2]
+    t_gen_1 = time.time()
     log(f"  ✓ {corr_a.name}: {len(corr_a.sample_points)} points | {corr_a.total_distance_m:.0f}m | direct great-circle")
     log(f"  ✓ {corr_b.name}: {len(corr_b.sample_points)} points | {corr_b.total_distance_m:.0f}m | +{offset_m:.0f}m right detour bend")
-    log(f"  ✓ {corr_c.name}: {len(corr_c.sample_points)} points | {corr_c.total_distance_m:.0f}m | -{offset_m:.0f}m left detour bend\n")
+    log(f"  ✓ {corr_c.name}: {len(corr_c.sample_points)} points | {corr_c.total_distance_m:.0f}m | -{offset_m:.0f}m left detour bend")
+    log(f"  ✓ Corridors generated in {(t_gen_1 - t_gen_0) * 1000:.1f}ms.\n")
 
     # -------------------------------------------------------------------------
     # STEP 2: Parallel Multi-Source Fetch across all 3 Corridors
@@ -122,12 +128,13 @@ async def execute_pipeline(
         fetch_corridor_data(corr_c)
     )
     t_fetch_1 = time.time()
-    log(f"  ✓ Data ingestion completed across all 3 corridors in {t_fetch_1 - t_fetch_0:.2f}s.\n")
+    log(f"  ✓ Concurrent data ingestion completed across all 3 corridors in {t_fetch_1 - t_fetch_0:.2f}s.\n")
 
     # -------------------------------------------------------------------------
     # STEP 3: Pure Deterministic Compute Engine Scoring (Phase 6)
     # -------------------------------------------------------------------------
     log("▶ [Step 3/5] Running Pure Deterministic Compute Engine (Phase 6)...")
+    t_comp_0 = time.time()
     # Corridor A
     haz_a = score_corridor_hazard_exposure(corr_a, data_a["mireye_points"])
     obs_a = obstacle_risk(corr_a.sample_points, data_a["mireye_points"], cruise_altitude_ft=cruise_alt_ft)
@@ -186,6 +193,7 @@ async def execute_pipeline(
     }
 
     comparison = compare_corridors(corridors_eval)
+    t_comp_1 = time.time()
 
     computed_payload = {
         "corridor_a": {
@@ -219,23 +227,30 @@ async def execute_pipeline(
     }
 
     log(f"  ✓ Multi-criteria ranking completed: Winner -> {comparison['recommended_name']}")
-    log(f"  ✓ Dimension breakdown: Tier Winner: {comparison['dimension_winners']['tier_winner']} | Hazard Winner: {comparison['dimension_winners']['hazard_exposure_winner']}\n")
+    log(f"  ✓ Dimension breakdown: Tier Winner: {comparison['dimension_winners']['tier_winner']} | Hazard Winner: {comparison['dimension_winners']['hazard_exposure_winner']}")
+    log(f"  ✓ Compute engine evaluation completed in {(t_comp_1 - t_comp_0) * 1000:.1f}ms.\n")
 
     # -------------------------------------------------------------------------
     # STEP 4: Reasoning Layer (Phase 7)
     # -------------------------------------------------------------------------
     log("▶ [Step 4/5] Generating Structured Safety Case via Reasoning Layer (Phase 7)...")
+    t_reason_0 = time.time()
     raw_safety_case = generate_safety_case(computed_payload)
+    t_reason_1 = time.time()
+    log(f"  ✓ Reasoning Layer synthesis completed in {t_reason_1 - t_reason_0:.2f}s.\n")
 
     # -------------------------------------------------------------------------
     # STEP 5: Verification & Provenance (Phase 7)
     # -------------------------------------------------------------------------
     log("▶ [Step 5/5] Verifying Provenance Citations & Calculating Confidence Score...")
+    t_ver_0 = time.time()
     verified_safety_case = verify_provenance_and_confidence(raw_safety_case, corridors_eval)
+    t_ver_1 = time.time()
+    log(f"  ✓ Provenance verification completed in {(t_ver_1 - t_ver_0) * 1000:.1f}ms.\n")
 
     t_end = time.time()
     total_latency_s = round(t_end - t_start, 2)
-    log(f"  ✓ Mission Safety Case synthesis complete in {total_latency_s}s.\n")
+    log(f"  ✓ Mission Safety Case end-to-end pipeline finished in {total_latency_s}s.\n")
 
     return {
         "launch": geo_launch,
