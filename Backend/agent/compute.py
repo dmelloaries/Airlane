@@ -15,6 +15,27 @@ from agent.corridor import Corridor, SamplePoint, haversine_distance
 from sources.mireye import get_field_val
 
 
+def get_field_info(mireye_item: Dict[str, Any], key: str, default_val: Any = None) -> Tuple[Any, str]:
+    """
+    Safely extract (value, status_str) from a Mireye point dictionary.
+    Status defaults to 'ok' if value exists, or 'unknown' / 'absent' if missing.
+    """
+    if not isinstance(mireye_item, dict):
+        return default_val, "unknown"
+
+    field_obj = mireye_item.get(key)
+    if isinstance(field_obj, dict):
+        val = field_obj.get("value")
+        status = str(field_obj.get("status", "ok" if val is not None else "unknown")).lower()
+        if val is None:
+            val = default_val
+        return val, status
+    elif field_obj is not None:
+        return field_obj, "ok"
+
+    return default_val, "unknown"
+
+
 def score_corridor_hazard_exposure(
     corridor: Corridor,
     mireye_data_list: List[Dict[str, Any]]
@@ -24,6 +45,7 @@ def score_corridor_hazard_exposure(
     Inverse of nearest_substation_distance_m and nearest_transmission_line_distance_m
     is calculated for each sample point (closer infrastructure = higher risk score).
 
+    Explicitly excludes 'absent' status fields from scoring and distance aggregation.
     Returns a comparable score per corridor — lower is safer.
     Pure, deterministic function.
     """
@@ -35,18 +57,26 @@ def score_corridor_hazard_exposure(
     point_hazard_breakdown = []
 
     for pt, mireye in zip(corridor.sample_points, mireye_data_list):
-        sub_dist_val = get_field_val(mireye, "nearest_substation_distance_m", 9999.0)
-        trans_dist_val = get_field_val(mireye, "nearest_transmission_line_distance_m", 9999.0)
+        sub_val, sub_status = get_field_info(mireye, "nearest_substation_distance_m", None)
+        trans_val, trans_status = get_field_info(mireye, "nearest_transmission_line_distance_m", None)
 
-        sub_dist = float(sub_dist_val) if sub_dist_val is not None else 9999.0
-        trans_dist = float(trans_dist_val) if trans_dist_val is not None else 9999.0
+        sub_score = 0.0
+        sub_dist_display = 9999.0
+        if sub_status != "absent" and sub_val is not None:
+            sub_dist = float(sub_val)
+            substation_distances.append(sub_dist)
+            sub_dist_display = sub_dist
+            if sub_dist < 2000.0:
+                sub_score = (1000.0 / max(sub_dist, 10.0))
 
-        substation_distances.append(sub_dist)
-        transmission_distances.append(trans_dist)
-
-        # Inverse distance scoring (only score within 2000m threshold)
-        sub_score = (1000.0 / max(sub_dist, 10.0)) if sub_dist < 2000.0 else 0.0
-        trans_score = (1000.0 / max(trans_dist, 10.0)) if trans_dist < 2000.0 else 0.0
+        trans_score = 0.0
+        trans_dist_display = 9999.0
+        if trans_status != "absent" and trans_val is not None:
+            trans_dist = float(trans_val)
+            transmission_distances.append(trans_dist)
+            trans_dist_display = trans_dist
+            if trans_dist < 2000.0:
+                trans_score = (1000.0 / max(trans_dist, 10.0))
 
         pt_score = sub_score + trans_score
         total_hazard_score += pt_score
@@ -56,8 +86,8 @@ def score_corridor_hazard_exposure(
         point_hazard_breakdown.append({
             "sample_index": pt.index,
             "distance_from_start_m": pt.distance_from_start_m,
-            "substation_distance_m": round(sub_dist, 1),
-            "transmission_distance_m": round(trans_dist, 1),
+            "substation_distance_m": round(sub_dist_display, 1),
+            "transmission_distance_m": round(trans_dist_display, 1),
             "point_risk_score": round(pt_score, 2)
         })
 
@@ -87,6 +117,7 @@ def obstacle_risk(
     Evaluate obstacle risks along corridor sample points.
     Checks Mireye transmission line / substation proximity and vertical clearance against drone cruise altitude.
 
+    Explicitly excludes 'absent' status fields from scoring.
     Returns a list of flagged obstacle risk points with distance-along-route.
     Pure, deterministic function.
     """
@@ -98,18 +129,18 @@ def obstacle_risk(
     flagged_obstacles = []
 
     for pt, mireye in zip(sample_points, mireye_data_list):
-        sub_dist_val = get_field_val(mireye, "nearest_substation_distance_m", 9999.0)
-        trans_dist_val = get_field_val(mireye, "nearest_transmission_line_distance_m", 9999.0)
-        trans_kv_val = get_field_val(mireye, "nearest_transmission_line_voltage_kv", 0.0)
+        sub_val, sub_status = get_field_info(mireye, "nearest_substation_distance_m", None)
+        trans_val, trans_status = get_field_info(mireye, "nearest_transmission_line_distance_m", None)
+        trans_kv_val, _ = get_field_info(mireye, "nearest_transmission_line_voltage_kv", 0.0)
 
-        sub_dist = float(sub_dist_val) if sub_dist_val is not None else 9999.0
-        trans_dist = float(trans_dist_val) if trans_dist_val is not None else 9999.0
+        trans_dist = float(trans_val) if (trans_status != "absent" and trans_val is not None) else 9999.0
+        sub_dist = float(sub_val) if (sub_status != "absent" and sub_val is not None) else 9999.0
         trans_kv = float(trans_kv_val) if trans_kv_val is not None else 0.0
 
         mile_marker = pt.distance_from_start_m / 1609.34
 
         # Check transmission line clearance hazard (< 150m proximity)
-        if trans_dist < 150.0:
+        if trans_status != "absent" and trans_dist < 150.0:
             flagged_obstacles.append({
                 "sample_index": pt.index,
                 "lat": pt.lat,
@@ -124,7 +155,7 @@ def obstacle_risk(
                 "severity": "HIGH",
                 "description": f"Transmission line ({trans_kv:.0f}kV) within {trans_dist:.0f}m at mile {mile_marker:.2f}. Cruise altitude {cruise_altitude_ft:.0f}ft AGL requires heightened clearance."
             })
-        elif sub_dist < 200.0:
+        elif sub_status != "absent" and sub_dist < 200.0:
             flagged_obstacles.append({
                 "sample_index": pt.index,
                 "lat": pt.lat,
@@ -224,8 +255,8 @@ def wind_risk(
     }
     effective_limit = class_limits.get(drone_class, max_crosswind_kt)
 
-    spd = float(wind_data.get("wind_speed_kt", 0.0))
-    gust = float(wind_data.get("wind_gust_kt", 0.0))
+    spd = float(wind_data.get("wind_speed_kt") or 0.0)
+    gust = float(wind_data.get("wind_gust_kt") or 0.0)
     direction = wind_data.get("wind_direction_deg", 0)
     station_id = wind_data.get("station_id", "METAR")
 
@@ -266,6 +297,7 @@ def forced_landing_zones(
     Filters for points with maximal distance from infrastructure (substations, lines) and gentle slope (< 5°).
     Ensures minimum spatial spacing (~800m) between selected landing spots.
 
+    Explicitly excludes points with any 'absent' status fields from qualifying as landing zones.
     Pure, deterministic function.
     """
     if isinstance(corridor_or_points, Corridor):
@@ -275,13 +307,19 @@ def forced_landing_zones(
 
     candidates = []
     for pt, mireye in zip(sample_points, mireye_data_list):
-        sub_dist_val = get_field_val(mireye, "nearest_substation_distance_m", 9999.0)
-        trans_dist_val = get_field_val(mireye, "nearest_transmission_line_distance_m", 9999.0)
-        slope_val = get_field_val(mireye, "slope_degrees", 0.0)
+        sub_val, sub_status = get_field_info(mireye, "nearest_substation_distance_m", None)
+        trans_val, trans_status = get_field_info(mireye, "nearest_transmission_line_distance_m", None)
+        slope_val, slope_status = get_field_info(mireye, "slope_degrees", None)
 
-        sub_dist = float(sub_dist_val) if sub_dist_val is not None else 9999.0
-        trans_dist = float(trans_dist_val) if trans_dist_val is not None else 9999.0
-        slope = float(slope_val) if slope_val is not None else 0.0
+        # Absent-data points CANNOT qualify as a forced landing zone
+        if sub_status == "absent" or trans_status == "absent" or slope_status == "absent":
+            continue
+        if sub_val is None or trans_val is None or slope_val is None:
+            continue
+
+        sub_dist = float(sub_val)
+        trans_dist = float(trans_val)
+        slope = float(slope_val)
 
         if sub_dist > 400.0 and trans_dist > 300.0 and slope < 5.0:
             clearance = min(sub_dist, trans_dist)
@@ -319,6 +357,83 @@ def forced_landing_zones(
 identify_landing_zones = forced_landing_zones
 
 
+def calculate_corridor_completeness(data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Calculate completeness score and ratio for a corridor evaluation by checking input statuses.
+    Counts total input data points/fields and how many are absent/UNKNOWN/FAILED.
+    """
+    total_inputs = 0
+    incomplete_inputs = 0
+
+    # 1. Mireye hazard points
+    mireye_list = data.get("mireye_raw") or data.get("mireye_points") or data.get("mireye") or []
+    if isinstance(mireye_list, list):
+        for pt in mireye_list:
+            if isinstance(pt, dict):
+                for f_key in ["nearest_substation_distance_m", "nearest_transmission_line_distance_m", "slope_degrees"]:
+                    f_obj = pt.get(f_key)
+                    total_inputs += 1
+                    if isinstance(f_obj, dict):
+                        st = str(f_obj.get("status", "")).lower()
+                        val = f_obj.get("value")
+                        if st in ("absent", "unknown", "failed") or val is None:
+                            incomplete_inputs += 1
+                    elif f_obj is None:
+                        incomplete_inputs += 1
+
+    # 2. FAA airspace points
+    faa_list = data.get("faa_raw") or data.get("faa_points") or data.get("faa") or []
+    if isinstance(faa_list, list):
+        for pt in faa_list:
+            total_inputs += 1
+            if isinstance(pt, dict):
+                st = str(pt.get("status", "")).upper()
+                if st in ("ABSENT", "UNKNOWN", "FAILED"):
+                    incomplete_inputs += 1
+            else:
+                incomplete_inputs += 1
+
+    # 3. Census ground risk points
+    census_list = data.get("census_raw") or data.get("census_points") or data.get("census") or []
+    if isinstance(census_list, list):
+        for pt in census_list:
+            total_inputs += 1
+            if isinstance(pt, dict):
+                st = str(pt.get("status", "")).upper()
+                if st in ("ABSENT", "UNKNOWN", "FAILED"):
+                    incomplete_inputs += 1
+            else:
+                incomplete_inputs += 1
+
+    # 4. NOAA Wind observation
+    wind_obj = data.get("wind", {})
+    total_inputs += 1
+    if isinstance(wind_obj, dict):
+        st = str(wind_obj.get("status", "")).upper()
+        if not wind_obj or st in ("ABSENT", "UNKNOWN", "FAILED", "MISSING"):
+            incomplete_inputs += 1
+    else:
+        incomplete_inputs += 1
+
+    # Fallback if no raw point lists were supplied
+    if total_inputs == 1 and not mireye_list and not faa_list and not census_list:
+        tier_obj = data.get("tier", {})
+        if isinstance(tier_obj, dict) and str(tier_obj.get("status", "")).upper() in ("UNKNOWN", "FAILED"):
+            incomplete_inputs += 1
+        total_inputs = 2
+
+    completeness_ratio = (total_inputs - incomplete_inputs) / total_inputs if total_inputs > 0 else 1.0
+    completeness_ratio = round(max(0.0, min(1.0, completeness_ratio)), 4)
+
+    return {
+        "total_inputs": total_inputs,
+        "incomplete_inputs": incomplete_inputs,
+        "complete_inputs": total_inputs - incomplete_inputs,
+        "completeness_ratio": completeness_ratio,
+        "confidence_level": "HIGH" if completeness_ratio >= 0.9 else ("MEDIUM" if completeness_ratio >= 0.7 else "LOW")
+    }
+
+
 def compare_corridors(
     corridors_eval: Union[Dict[str, Dict[str, Any]], Corridor, List[Any]],
     *args: Any
@@ -332,7 +447,7 @@ def compare_corridors(
     4. Route distance (shorter distance with equivalent risk)
 
     Explicitly returns the recommended corridor, itemized dimension breakdown, and
-    detailed rejection reasons for all losing candidate routes.
+    detailed rejection reasons for all losing candidate routes. Includes completeness/confidence metrics.
     Pure, deterministic function: same input → byte-identical output.
     """
     tier_rank_map = {"Tier 1": 1, "Tier 2": 2, "Tier 3": 3, "Tier 4": 4, "Tier 5": 5}
@@ -370,7 +485,13 @@ def compare_corridors(
         min_sub = data.get("hazard_exposure", {}).get("min_substation_distance_m", 9999.0)
 
         wind_data = data.get("wind", {})
-        wind_safe = wind_data.get("is_safe", True)
+        wind_status = str(wind_data.get("status", "")).upper()
+        if not wind_data or wind_status in ("FAILED", "UNKNOWN", "MISSING") or "is_safe" not in wind_data:
+            wind_safe = wind_data.get("is_safe", False)
+        else:
+            wind_safe = wind_data.get("is_safe", True)
+
+        completeness_info = calculate_corridor_completeness(data)
 
         ranked.append({
             "id": c_id,
@@ -382,7 +503,8 @@ def compare_corridors(
             "distance_m": c_dist,
             "min_trans_m": min_trans,
             "min_sub_m": min_sub,
-            "wind_safe": wind_safe
+            "wind_safe": wind_safe,
+            "completeness": completeness_info
         })
 
     # Strict multi-criteria deterministic sorting
@@ -444,6 +566,7 @@ def compare_corridors(
             "distance_winner": dist_winner
         },
         "rejected_corridors": rejected_corridors,
+        "completeness": {r["id"]: r["completeness"] for r in ranked},
         "scored_metrics": {r["id"]: {
             "hazard_score": r["hazard_score"],
             "tier": r["tier"],
@@ -452,6 +575,8 @@ def compare_corridors(
             "distance_m": r["distance_m"],
             "min_transmission_distance_m": r["min_trans_m"],
             "min_substation_distance_m": r["min_sub_m"],
-            "wind_safe": r["wind_safe"]
+            "wind_safe": r["wind_safe"],
+            "completeness_ratio": r["completeness"]["completeness_ratio"],
+            "completeness": r["completeness"]
         } for r in ranked}
     }

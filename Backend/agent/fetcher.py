@@ -7,8 +7,8 @@ for all sample points in candidate corridors.
 import asyncio
 from typing import List, Dict, Any
 from sources.mireye import fetch_batch_points as fetch_mireye_batch
-from sources.faa_airspace import fetch_ceiling as fetch_faa
-from sources.population import fetch_population_density_and_tier as fetch_census
+from sources.faa_airspace import fetch_batch_ceilings as fetch_faa_batch
+from sources.population import fetch_batch_population_density as fetch_census_batch
 from sources.noaa_wind import fetch_wind as fetch_noaa
 from agent.corridor import Corridor, SamplePoint
 
@@ -16,7 +16,7 @@ from agent.corridor import Corridor, SamplePoint
 async def fetch_corridor_data(corridor: Corridor) -> Dict[str, Any]:
     """
     Fetch all environmental and airspace data for a single corridor's sample points.
-    Uses ONE batched call to Mireye /v1/fetch with grid disk caching.
+    Uses batched calls for Mireye, FAA Airspace, and Census Population to leverage grid cache batch lookups.
     """
     points = corridor.sample_points
 
@@ -24,22 +24,19 @@ async def fetch_corridor_data(corridor: Corridor) -> Dict[str, Any]:
     mid_pt = points[len(points) // 2]
     loop = asyncio.get_event_loop()
 
-    # Launch wind, Mireye batch, FAA, and Census tasks concurrently
+    # Launch wind, Mireye batch, FAA batch, and Census batch tasks concurrently
     wind_task = loop.run_in_executor(None, fetch_noaa, mid_pt.lat, mid_pt.lng)
 
-    # Mireye batch fetch for all sample points in corridor (1 HTTP request or 0 if cached)
     coords = [(pt.lat, pt.lng) for pt in points]
     mireye_task = loop.run_in_executor(None, fetch_mireye_batch, coords)
-
-    # FAA & Census parallel fetch per sample point
-    faa_tasks = [loop.run_in_executor(None, fetch_faa, pt.lat, pt.lng) for pt in points]
-    census_tasks = [loop.run_in_executor(None, fetch_census, pt.lat, pt.lng) for pt in points]
+    faa_task = loop.run_in_executor(None, fetch_faa_batch, coords)
+    census_task = loop.run_in_executor(None, fetch_census_batch, coords)
 
     wind_data, mireye_results, faa_results, census_results = await asyncio.gather(
         wind_task,
         mireye_task,
-        asyncio.gather(*faa_tasks),
-        asyncio.gather(*census_tasks)
+        faa_task,
+        census_task
     )
 
     return {

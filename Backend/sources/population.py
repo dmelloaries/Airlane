@@ -14,7 +14,7 @@ import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Any, List, Tuple
 from pathlib import Path
-from db import get_cached_response, set_cached_response
+from db import get_cached_response, set_cached_response, get_cached_grid_batch, set_cached_grid_batch
 
 CENSUS_API_KEY = os.getenv("CENSUS_API_KEY", "")
 TIERS_FILE = Path(__file__).parent.parent / "data" / "part108_tiers.json"
@@ -41,20 +41,22 @@ def classify_tier(density_sq_mi: float) -> Dict[str, Any]:
     }
 
 
-def geocode_census_tract(lat: float, lng: float) -> Dict[str, Any]:
+# In-memory tract population cache to avoid redundant ACS5 API calls for points in the same tract
+_TRACT_POP_CACHE: Dict[str, float] = {}
+
+
+def geocode_census_tract(lat: float, lng: float, point_info: str = "") -> Dict[str, Any]:
     """
     Step 1: Standalone Census Geocoder lookup.
-    Queries geocoding.geo.census.gov with (lng, lat) coordinates to extract:
-    - State FIPS (e.g. "48" for Texas)
-    - County FIPS (e.g. "453" for Travis County)
-    - Tract Code (e.g. "001103")
-    - Full GEOID / Tract FIPS
-    - Land Area in sq meters (AREALAND) and sq miles
+    Queries geocoding.geo.census.gov with (lng, lat) coordinates to extract Census Tract FIPS & Land Area.
     """
     cache_key = f"census_geo_{round(lat, 4)}_{round(lng, 4)}"
     cached = get_cached_response(cache_key)
     if cached:
         return cached
+
+    prefix = f"{point_info}: " if point_info else ""
+    print(f"  [Census Geocode] {prefix}Geocoding ({lat:.4f}, {lng:.4f})...", flush=True)
 
     geo_url = "https://geocoding.geo.census.gov/geocoder/geographies/coordinates"
     geo_params = {
@@ -92,8 +94,12 @@ def geocode_census_tract(lat: float, lng: float) -> Dict[str, Any]:
                 }
                 set_cached_response(cache_key, "census_geo", result)
                 return result
+        else:
+            print(f"  [Census Warning] HTTP {resp.status_code} geocoding ({lat:.4f}, {lng:.4f})", flush=True)
+    except requests.exceptions.Timeout:
+        print(f"  [Census Timeout] Timed out (10s) geocoding ({lat:.4f}, {lng:.4f})", flush=True)
     except Exception as e:
-        print(f"[Census Geocoder Warning] {e} at ({lat}, {lng})")
+        print(f"  [Census Geocoder Warning] {e} at ({lat:.4f}, {lng:.4f})", flush=True)
 
     return {
         "state_fips": "",
@@ -107,7 +113,7 @@ def geocode_census_tract(lat: float, lng: float) -> Dict[str, Any]:
     }
 
 
-def fetch_population_density_and_tier(lat: float, lng: float) -> Dict[str, Any]:
+def fetch_population_density_and_tier(lat: float, lng: float, idx: int = 0, total: int = 0) -> Dict[str, Any]:
     """
     Full Phase 4 Pipeline:
     1. Geocode lat/lng coordinate -> Census Tract & Land Area
@@ -120,8 +126,10 @@ def fetch_population_density_and_tier(lat: float, lng: float) -> Dict[str, Any]:
     if cached:
         return cached
 
+    point_info = f"Point {idx+1}/{total}" if total > 0 else f"Point {idx+1}"
+
     # Step 1: Census Geocoder
-    geo = geocode_census_tract(lat, lng)
+    geo = geocode_census_tract(lat, lng, point_info=point_info)
     if geo["status"] != "OK" or not geo["tract_code"]:
         fallback_tier = classify_tier(250.0)
         return {
@@ -135,11 +143,34 @@ def fetch_population_density_and_tier(lat: float, lng: float) -> Dict[str, Any]:
             "status": "UNKNOWN"
         }
 
-    # Step 2: Query Census ACS5 API
+    # Step 2: Query Census ACS5 API (or check in-memory tract cache)
     state_fips = geo["state_fips"]
     county_fips = geo["county_fips"]
     tract_code = geo["tract_code"]
+    tract_fips = geo["tract_fips"]
     land_area_sq_mi = geo["land_area_sq_mi"]
+
+    # Check in-memory tract population cache
+    if tract_fips in _TRACT_POP_CACHE:
+        print(f"  [Census ACS5] Tract {tract_fips} already cached, skipping API call", flush=True)
+        pop_estimate = _TRACT_POP_CACHE[tract_fips]
+        density = pop_estimate / land_area_sq_mi if land_area_sq_mi > 0 else 500.0
+        tier_info = classify_tier(density)
+        result = {
+            "population": int(pop_estimate),
+            "density_sq_mi": round(density, 1),
+            "land_area_sq_mi": land_area_sq_mi,
+            "tier": tier_info["tier"],
+            "tier_name": tier_info["name"],
+            "tier_description": tier_info.get("description", ""),
+            "tract_fips": tract_fips,
+            "source": "US Census Bureau ACS5 (Cached Tract)",
+            "status": "OK"
+        }
+        set_cached_response(cache_key, "census_full", result)
+        return result
+
+    print(f"  [Census ACS5] {point_info}: querying ACS5 for tract {tract_fips}...", flush=True)
 
     acs_url = "https://api.census.gov/data/2021/acs/acs5"
     acs_params = {
@@ -156,6 +187,10 @@ def fetch_population_density_and_tier(lat: float, lng: float) -> Dict[str, Any]:
             acs_json = resp.json()
             if len(acs_json) > 1:
                 pop_estimate = float(acs_json[1][0])
+
+                # Memoize tract population
+                _TRACT_POP_CACHE[tract_fips] = pop_estimate
+
                 density = pop_estimate / land_area_sq_mi if land_area_sq_mi > 0 else 500.0
                 tier_info = classify_tier(density)
 
@@ -166,14 +201,18 @@ def fetch_population_density_and_tier(lat: float, lng: float) -> Dict[str, Any]:
                     "tier": tier_info["tier"],
                     "tier_name": tier_info["name"],
                     "tier_description": tier_info.get("description", ""),
-                    "tract_fips": geo["tract_fips"],
+                    "tract_fips": tract_fips,
                     "source": "US Census Bureau ACS5 (2021)",
                     "status": "OK"
                 }
                 set_cached_response(cache_key, "census_full", result)
                 return result
+        else:
+            print(f"  [Census Warning] HTTP {resp.status_code} querying ACS5 for tract {tract_fips}", flush=True)
+    except requests.exceptions.Timeout:
+        print(f"  [Census Timeout] Timed out (10s) querying ACS5 for tract {tract_fips}", flush=True)
     except Exception as e:
-        print(f"[Census ACS5 Warning] {e} at ({lat}, {lng})")
+        print(f"  [Census ACS5 Warning] {e} at ({lat:.4f}, {lng:.4f})", flush=True)
 
     fallback_tier = classify_tier(350.0)
     return {
@@ -191,26 +230,27 @@ def fetch_population_density_and_tier(lat: float, lng: float) -> Dict[str, Any]:
 def fetch_batch_population_density(points: List[Tuple[float, float]], max_workers: int = 10) -> List[Dict[str, Any]]:
     """
     Fetch population density and Part 108 tiers for a list of (lat, lng) points in parallel.
-    Uses disk caching to avoid redundant calls.
+    Uses generalized batch cache retrieval to avoid 40 sequential DB lookups.
     """
     if not points:
         return []
 
     results = [None] * len(points)
-    missing_tasks = []
+    keys = [f"census_full_{round(lat, 4)}_{round(lng, 4)}" for lat, lng in points]
+    cached_map = get_cached_grid_batch(keys)
 
+    missing_tasks = []
     for idx, (lat, lng) in enumerate(points):
-        c_key = f"census_full_{round(lat, 4)}_{round(lng, 4)}"
-        cached = get_cached_response(c_key)
-        if cached:
-            results[idx] = cached
+        c_key = keys[idx]
+        if c_key in cached_map:
+            results[idx] = cached_map[c_key]
         else:
             missing_tasks.append((idx, lat, lng))
 
     if missing_tasks:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             future_to_task = {
-                executor.submit(fetch_population_density_and_tier, lat, lng): idx
+                executor.submit(fetch_population_density_and_tier, lat, lng, idx, len(points)): idx
                 for idx, lat, lng in missing_tasks
             }
 
@@ -231,4 +271,3 @@ def fetch_batch_population_density(points: List[Tuple[float, float]], max_worker
                     }
 
     return results
-

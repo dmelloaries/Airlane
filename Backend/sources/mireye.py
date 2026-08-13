@@ -1,14 +1,13 @@
 """
 Mireye Earth API Client (Infrastructure & Hazards).
 
-Performs point-by-point parallel fetches to /v1/fetch with grid disk caching.
+Performs batched fetches to /v1/fetch with grid disk caching.
 Parses Mireye's nested response schema: response["fields"][field_name] -> {value, source, confidence, unit, status}.
 Preserves value, source, and confidence for every field to support citations and auditability.
 """
 
 import os
 import requests
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Any, List, Tuple
 from db import get_cached_response, set_cached_response, get_cached_grid_batch, set_cached_grid_batch
 
@@ -98,11 +97,14 @@ def get_field_val(mireye_item: Dict[str, Any], key: str, default: Any = None) ->
     return default
 
 
-def fetch_single_point_from_api(lat: float, lng: float) -> Dict[str, Any]:
+def fetch_single_point_from_api(lat: float, lng: float, max_retries: int = 4) -> Dict[str, Any]:
     """
     Execute single HTTP POST to Mireye /v1/fetch for one (lat, lng) point.
-    RAISES RuntimeError if HTTP status != 200.
+    Retries automatically on 429 (rate limit) with backoff using the server's
+    retry_after_s hint.  RAISES RuntimeError on non-200/non-429 responses.
     """
+    import time as _time
+
     headers = {
         "Authorization": f"Bearer {MIREYE_API_KEY}",
         "Content-Type": "application/json"
@@ -113,27 +115,52 @@ def fetch_single_point_from_api(lat: float, lng: float) -> Dict[str, Any]:
         "fields": FETCH_FIELDS
     }
 
-    resp = requests.post(f"{MIREYE_BASE_URL}/fetch", json=payload, headers=headers, timeout=10)
-    if resp.status_code != 200:
+    for attempt in range(max_retries):
+        resp = requests.post(
+            f"{MIREYE_BASE_URL}/fetch", json=payload,
+            headers=headers, timeout=15
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            return normalize_mireye_item(data)
+
+        if resp.status_code == 429:
+            # Rate limited — parse server hint and sleep
+            try:
+                detail = resp.json().get("detail", {})
+                retry_after = float(detail.get("retry_after_s", 3))
+            except Exception:
+                retry_after = 3.0
+            wait = retry_after + 0.5 * (attempt + 1)   # progressive backoff
+            _time.sleep(wait)
+            continue
+
+        # Any other HTTP error — raise immediately
         raise RuntimeError(
             f"Mireye API Error (HTTP {resp.status_code}): {resp.text}\n"
             f"Sent Payload: {payload}"
         )
 
-    data = resp.json()
-    return normalize_mireye_item(data)
+    raise RuntimeError(
+        f"Mireye API still rate-limited after {max_retries} retries for ({lat}, {lng})"
+    )
 
 
-def fetch_batch_points(points: List[Tuple[float, float]], max_workers: int = 10) -> List[Dict[str, Any]]:
+def fetch_batch_points(points: List[Tuple[float, float]], max_workers: int = 4) -> List[Dict[str, Any]]:
     """
     Fetch Mireye hazard metrics for a list of (lat, lng) points.
 
     1. Checks disk cache (fetch_cache) first for ~100m grid cells.
-    2. Executes parallel HTTP requests to Mireye /v1/fetch for all cache misses.
-    3. RAISES an exception if any API call fails — NO fake sentinel fallback values.
+    2. Sends individual /v1/fetch requests for cache misses via a
+       ThreadPoolExecutor (reduced to 4 workers to avoid bursting
+       past the 20 RPM Free-plan rate limit).
+    3. Each request has built-in 429 retry with backoff — rate-limited
+       calls automatically wait and succeed instead of crashing.
     4. Stores valid returned results into fetch_cache.
     5. Returns results in exact input order.
     """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
     if not points:
         return []
 
