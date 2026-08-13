@@ -22,20 +22,25 @@ async def fetch_corridor_data(corridor: Corridor) -> Dict[str, Any]:
 
     # Midpoint coordinate for wind fetch
     mid_pt = points[len(points) // 2]
-    wind_data = fetch_noaa(mid_pt.lat, mid_pt.lng)
-
     loop = asyncio.get_event_loop()
+
+    # Launch wind, Mireye batch, FAA, and Census tasks concurrently
+    wind_task = loop.run_in_executor(None, fetch_noaa, mid_pt.lat, mid_pt.lng)
 
     # Mireye batch fetch for all sample points in corridor (1 HTTP request or 0 if cached)
     coords = [(pt.lat, pt.lng) for pt in points]
-    mireye_results = await loop.run_in_executor(None, fetch_mireye_batch, coords)
+    mireye_task = loop.run_in_executor(None, fetch_mireye_batch, coords)
 
     # FAA & Census parallel fetch per sample point
     faa_tasks = [loop.run_in_executor(None, fetch_faa, pt.lat, pt.lng) for pt in points]
     census_tasks = [loop.run_in_executor(None, fetch_census, pt.lat, pt.lng) for pt in points]
 
-    faa_results = await asyncio.gather(*faa_tasks)
-    census_results = await asyncio.gather(*census_tasks)
+    wind_data, mireye_results, faa_results, census_results = await asyncio.gather(
+        wind_task,
+        mireye_task,
+        asyncio.gather(*faa_tasks),
+        asyncio.gather(*census_tasks)
+    )
 
     return {
         "corridor": corridor,

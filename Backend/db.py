@@ -81,30 +81,34 @@ def init_db():
                 pg_conn.commit()
             pg_conn.close()
             print("[DB] Initialized PostgreSQL tables (api_cache & fetch_cache) via Neon DB.")
-            return
         except Exception as e:
             print(f"[DB Error] PostgreSQL init failed: {e}. Falling back to SQLite.")
 
-    # SQLite fallback init
-    conn = get_sqlite_conn()
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS api_cache (
-            key TEXT PRIMARY KEY,
-            source TEXT NOT NULL,
-            payload TEXT NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-        CREATE TABLE IF NOT EXISTS fetch_cache (
-            grid_key TEXT PRIMARY KEY,
-            source TEXT NOT NULL,
-            payload TEXT NOT NULL,
-            fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
-    conn.commit()
-    conn.close()
-    print("[DB] Initialized SQLite local database tables fallback.")
+    # Always ensure SQLite tables are initialized as fallback
+    try:
+        conn = get_sqlite_conn()
+        cursor = conn.cursor()
+        cursor.executescript("""
+            CREATE TABLE IF NOT EXISTS api_cache (
+                key TEXT PRIMARY KEY,
+                source TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE TABLE IF NOT EXISTS fetch_cache (
+                grid_key TEXT PRIMARY KEY,
+                source TEXT NOT NULL,
+                payload TEXT NOT NULL,
+                fetched_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+        conn.commit()
+        conn.close()
+        print("[DB] Initialized SQLite local database tables.")
+    except Exception as e:
+        print(f"[DB Error] SQLite init failed: {e}")
+
+
 
 
 def get_cached_response(key: str) -> Optional[Dict[str, Any]]:
