@@ -10,6 +10,8 @@ import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Any, List, Tuple
 from db import get_cached_response, set_cached_response, get_cached_grid_batch, set_cached_grid_batch
+from agent.corridor import haversine_distance
+from sources.mireye import get_field_val
 
 FAA_UAS_FEATURE_SERVER = (
     "https://services6.arcgis.com/ssFJjBXIUyZDrSYZ/arcgis/rest/services/"
@@ -164,3 +166,89 @@ def fetch_batch_ceilings(points: List[Tuple[float, float]], max_workers: int = 5
             set_cached_grid_batch(newly_fetched)
 
     return results
+
+
+def fetch_corridor_ceilings_downsampled(
+    sample_points: List[Any],
+    mireye_results: List[Dict[str, Any]],
+    airport_threshold_m: float = 3000.0,
+    max_workers: int = 5
+) -> List[Dict[str, Any]]:
+    """
+    Fetch FAA airspace ceilings with corridor sampling optimization:
+    - Base sampling: Every 2nd point along each corridor (indices 0, 2, 4, 6, ...).
+    - Full-resolution exception: Any point within 3km (3000m) of a known airport
+      (via Mireye's nearest_airport_distance_m) is explicitly sampled.
+    - For skipped points, assigns the nearest sampled FAA result based on spatial distance.
+
+    Returns:
+        List[Dict[str, Any]]: FAA ceiling dicts for all sample points in exact order.
+    """
+    if not sample_points:
+        return []
+
+    # Extract (lat, lng) tuples
+    coords = []
+    for pt in sample_points:
+        if hasattr(pt, "lat") and hasattr(pt, "lng"):
+            coords.append((float(pt.lat), float(pt.lng)))
+        elif isinstance(pt, (tuple, list)) and len(pt) >= 2:
+            coords.append((float(pt[0]), float(pt[1])))
+        elif isinstance(pt, dict):
+            coords.append((float(pt.get("lat", 0.0)), float(pt.get("lng", 0.0))))
+        else:
+            raise ValueError(f"Invalid sample point element: {pt}")
+
+    n_pts = len(coords)
+
+    # Determine which indices to sample from FAA API/cache
+    sampled_indices = []
+    for idx in range(n_pts):
+        is_every_2nd = (idx % 2 == 0)
+
+        is_near_airport = False
+        if mireye_results and idx < len(mireye_results):
+            m_item = mireye_results[idx]
+            airport_dist = get_field_val(m_item, "nearest_airport_distance_m", None)
+            if airport_dist is not None:
+                try:
+                    is_near_airport = (float(airport_dist) <= airport_threshold_m)
+                except (ValueError, TypeError):
+                    is_near_airport = False
+
+        if is_every_2nd or is_near_airport:
+            sampled_indices.append(idx)
+
+    if not sampled_indices:
+        sampled_indices = [0]
+
+    # Fetch FAA ceilings only for sampled coordinates
+    sampled_coords = [coords[i] for i in sampled_indices]
+    sampled_faa_results = fetch_batch_ceilings(sampled_coords, max_workers=max_workers)
+
+    # Build index to result mapping
+    sampled_map = {}
+    for idx, res in zip(sampled_indices, sampled_faa_results):
+        res_copy = dict(res)
+        res_copy["sampled"] = True
+        sampled_map[idx] = res_copy
+
+    # Assign results to all corridor points (nearest sampled value for skipped points)
+    final_results = [None] * n_pts
+    for idx in range(n_pts):
+        if idx in sampled_map:
+            final_results[idx] = sampled_map[idx]
+        else:
+            cur_coord = coords[idx]
+            best_idx = min(
+                sampled_indices,
+                key=lambda s_idx: (
+                    haversine_distance(cur_coord, coords[s_idx]),
+                    abs(idx - s_idx)
+                )
+            )
+            nearest_res = dict(sampled_map[best_idx])
+            nearest_res["sampled"] = False
+            final_results[idx] = nearest_res
+
+    return final_results

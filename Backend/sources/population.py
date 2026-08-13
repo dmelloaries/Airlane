@@ -10,11 +10,15 @@ Pipeline:
 
 import os
 import json
+import time
+import threading
+from datetime import datetime
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Dict, Any, List, Tuple
 from pathlib import Path
 from db import get_cached_response, set_cached_response, get_cached_grid_batch, set_cached_grid_batch
+from agent.corridor import haversine_distance
 
 CENSUS_API_KEY = os.getenv("CENSUS_API_KEY", "")
 TIERS_FILE = Path(__file__).parent.parent / "data" / "part108_tiers.json"
@@ -44,20 +48,47 @@ def classify_tier(density_sq_mi: float) -> Dict[str, Any]:
 # In-memory tract population cache to avoid redundant ACS5 API calls for points in the same tract
 _TRACT_POP_CACHE: Dict[str, float] = {}
 
+# Thread-safe in-memory spatial geocode cache (~333m grid cells: 0.003 deg resolution)
+_GEOCODE_SPATIAL_LOCK = threading.Lock()
+_GEOCODE_SPATIAL_CACHE: Dict[str, Dict[str, Any]] = {}
+
+
+def make_spatial_grid_key(lat: float, lng: float) -> str:
+    """Round coordinate to ~333m grid cell (0.003 deg resolution) for geocoding spatial memoization."""
+    grid_lat = round(lat / 0.003) * 0.003
+    grid_lng = round(lng / 0.003) * 0.003
+    return f"census_grid_{grid_lat:.4f}_{grid_lng:.4f}"
+
 
 def geocode_census_tract(lat: float, lng: float, point_info: str = "") -> Dict[str, Any]:
     """
     Step 1: Standalone Census Geocoder lookup.
     Queries geocoding.geo.census.gov with (lng, lat) coordinates to extract Census Tract FIPS & Land Area.
+    Features:
+    - DB response cache check
+    - Spatial memoization (~333m grid cell in-memory cache)
+    - Explicit start/end timestamp & latency logging per call
     """
+    prefix = f"{point_info}: " if point_info else ""
+
+    # 1. DB Cache check
     cache_key = f"census_geo_{round(lat, 4)}_{round(lng, 4)}"
     cached = get_cached_response(cache_key)
     if cached:
         return cached
 
-    prefix = f"{point_info}: " if point_info else ""
-    print(f"  [Census Geocode] {prefix}Geocoding ({lat:.4f}, {lng:.4f})...", flush=True)
+    # 2. In-memory spatial memoization check (~333m grid cell)
+    grid_key = make_spatial_grid_key(lat, lng)
+    with _GEOCODE_SPATIAL_LOCK:
+        if grid_key in _GEOCODE_SPATIAL_CACHE:
+            print(
+                f"  [Census Geocode SPATIAL REUSE] {prefix}({lat:.4f}, {lng:.4f}) -> "
+                f"reused tract from grid cell {grid_key}",
+                flush=True
+            )
+            return _GEOCODE_SPATIAL_CACHE[grid_key]
 
+    # 3. Live Geocoder API call with explicit start/end timestamp & latency logging
     geo_url = "https://geocoding.geo.census.gov/geocoder/geographies/coordinates"
     geo_params = {
         "x": lng,
@@ -67,8 +98,22 @@ def geocode_census_tract(lat: float, lng: float, point_info: str = "") -> Dict[s
         "format": "json"
     }
 
+    t0 = time.time()
+    start_ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+    print(f"  [Census Geocode START] {prefix}Geocoding ({lat:.4f}, {lng:.4f}) at {start_ts}...", flush=True)
+
     try:
         resp = requests.get(geo_url, params=geo_params, timeout=10)
+        t1 = time.time()
+        end_ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        elapsed_ms = (t1 - t0) * 1000.0
+
+        print(
+            f"  [Census Geocode END]   {prefix}Geocoding ({lat:.4f}, {lng:.4f}) at {end_ts} "
+            f"(took {elapsed_ms:.1f}ms | status={resp.status_code})",
+            flush=True
+        )
+
         if resp.status_code == 200:
             data = resp.json()
             geographies = data.get("result", {}).get("geographies", {})
@@ -92,14 +137,29 @@ def geocode_census_tract(lat: float, lng: float, point_info: str = "") -> Dict[s
                     "source": "US Census Geocoder API",
                     "status": "OK"
                 }
+
+                # Store in spatial in-memory cache
+                with _GEOCODE_SPATIAL_LOCK:
+                    _GEOCODE_SPATIAL_CACHE[grid_key] = result
+
+                # Log DB write latency
+                t_db0 = time.time()
                 set_cached_response(cache_key, "census_geo", result)
+                t_db1 = time.time()
+                db_ms = (t_db1 - t_db0) * 1000.0
+                print(f"  [Census DB Cache Write] {prefix}wrote census_geo cache in {db_ms:.1f}ms", flush=True)
+
                 return result
         else:
             print(f"  [Census Warning] HTTP {resp.status_code} geocoding ({lat:.4f}, {lng:.4f})", flush=True)
     except requests.exceptions.Timeout:
-        print(f"  [Census Timeout] Timed out (10s) geocoding ({lat:.4f}, {lng:.4f})", flush=True)
+        t1 = time.time()
+        end_ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        print(f"  [Census Timeout] Timed out (10s) geocoding ({lat:.4f}, {lng:.4f}) at {end_ts}", flush=True)
     except Exception as e:
-        print(f"  [Census Geocoder Warning] {e} at ({lat:.4f}, {lng:.4f})", flush=True)
+        t1 = time.time()
+        end_ts = datetime.now().strftime("%H:%M:%S.%f")[:-3]
+        print(f"  [Census Geocoder Warning] {e} at ({lat:.4f}, {lng:.4f}) at {end_ts}", flush=True)
 
     return {
         "state_fips": "",
@@ -271,3 +331,66 @@ def fetch_batch_population_density(points: List[Tuple[float, float]], max_worker
                     }
 
     return results
+
+
+def fetch_corridor_census_downsampled(
+    sample_points: List[Any],
+    max_workers: int = 10
+) -> List[Dict[str, Any]]:
+    """
+    Fetch Census population density and Part 108 tiers with corridor sampling optimization:
+    - Base sampling: Every 4th point along each corridor (indices 0, 4, 8, 12, ...).
+    - For skipped points, assigns the nearest sampled Census result based on spatial distance.
+
+    Returns:
+        List[Dict[str, Any]]: Census tier dicts for all sample points in exact order.
+    """
+    if not sample_points:
+        return []
+
+    # Extract (lat, lng) tuples
+    coords = []
+    for pt in sample_points:
+        if hasattr(pt, "lat") and hasattr(pt, "lng"):
+            coords.append((float(pt.lat), float(pt.lng)))
+        elif isinstance(pt, (tuple, list)) and len(pt) >= 2:
+            coords.append((float(pt[0]), float(pt[1])))
+        elif isinstance(pt, dict):
+            coords.append((float(pt.get("lat", 0.0)), float(pt.get("lng", 0.0))))
+        else:
+            raise ValueError(f"Invalid sample point element: {pt}")
+
+    n_pts = len(coords)
+
+    # Every 4th point sampling (indices 0, 4, 8, 12, ...)
+    sampled_indices = [idx for idx in range(n_pts) if idx % 4 == 0]
+    if not sampled_indices:
+        sampled_indices = [0]
+
+    sampled_coords = [coords[i] for i in sampled_indices]
+    sampled_census_results = fetch_batch_population_density(sampled_coords, max_workers=max_workers)
+
+    sampled_map = {}
+    for idx, res in zip(sampled_indices, sampled_census_results):
+        res_copy = dict(res)
+        res_copy["sampled"] = True
+        sampled_map[idx] = res_copy
+
+    final_results = [None] * n_pts
+    for idx in range(n_pts):
+        if idx in sampled_map:
+            final_results[idx] = sampled_map[idx]
+        else:
+            cur_coord = coords[idx]
+            best_idx = min(
+                sampled_indices,
+                key=lambda s_idx: (
+                    haversine_distance(cur_coord, coords[s_idx]),
+                    abs(idx - s_idx)
+                )
+            )
+            nearest_res = dict(sampled_map[best_idx])
+            nearest_res["sampled"] = False
+            final_results[idx] = nearest_res
+
+    return final_results
