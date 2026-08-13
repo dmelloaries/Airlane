@@ -47,7 +47,7 @@ class AnalyzeRequest(BaseModel):
     launch: Tuple[float, float]
     destination: Tuple[float, float]
     offset_distance_m: Optional[float] = 600.0
-    sample_spacing_m: Optional[float] = 150.0
+    sample_spacing_m: Optional[float] = 400.0
 
 
 @app.get("/")
@@ -59,7 +59,7 @@ def read_root():
     }
 
 
-async def run_pipeline(launch: Tuple[float, float], destination: Tuple[float, float], offset_m: float = 600.0, spacing_m: float = 150.0):
+async def run_pipeline(launch: Tuple[float, float], destination: Tuple[float, float], offset_m: float = 600.0, spacing_m: float = 400.0):
     # Step 1: 3 Geometric Corridor Candidates
     corridors = generate_candidates(launch, destination, offset_distance_m=offset_m, sample_spacing_m=spacing_m)
     corridor_a, corridor_b, corridor_c = corridors[0], corridors[1], corridors[2]

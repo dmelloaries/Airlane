@@ -2,9 +2,9 @@
 Corridor Generator module for BVLOS Drone Route Planning.
 
 Generates candidate flight corridors between launch and destination coordinates:
-- Corridor A: Direct great-circle path sampled every ~150-200m.
+- Corridor A: Direct great-circle path sampled every ~400m.
 - Corridor B: Curved path offset at the midpoint using a quadratic Bezier curve,
-  sampled every ~150-200m to create a genuinely distinct route.
+  sampled every ~400m to create a genuinely distinct route.
 """
 
 import math
@@ -101,7 +101,7 @@ def intermediate_point(p1: Tuple[float, float], p2: Tuple[float, float], fractio
 def interpolate_direct_path(
     p1: Tuple[float, float],
     p2: Tuple[float, float],
-    sample_spacing_m: float = 150.0
+    sample_spacing_m: float = 400.0
 ) -> Tuple[List[SamplePoint], float]:
     """
     Generate sample points along a direct great-circle path from p1 to p2.
@@ -184,12 +184,12 @@ def interpolate_offset_path(
     p1: Tuple[float, float],
     p2: Tuple[float, float],
     offset_distance_m: float = 600.0,
-    sample_spacing_m: float = 150.0,
+    sample_spacing_m: float = 400.0,
     offset_direction: int = 1
 ) -> Tuple[List[SamplePoint], float]:
     """
     Generate sample points along a curved Bezier detour route offset outward at the midpoint.
-    Points are resampled to maintain consistent ~150m spacing.
+    Points are resampled to maintain consistent ~400m spacing.
     """
     control_p = compute_bezier_control_point(p1, p2, offset_distance_m, offset_direction)
 
@@ -258,7 +258,7 @@ def generate_candidates(
     launch: Union[Tuple[float, float], Dict[str, float], List[float]],
     destination: Union[Tuple[float, float], Dict[str, float], List[float]],
     offset_distance_m: float = 600.0,
-    sample_spacing_m: float = 150.0
+    sample_spacing_m: float = 400.0
 ) -> List[Corridor]:
     """
     Generate 3 geometric candidate flight corridors between launch and destination:

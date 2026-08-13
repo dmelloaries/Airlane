@@ -364,5 +364,30 @@ def clear_fetch_cache():
         print(f"[DB Warning] SQLite clear cache error: {e}")
 
 
+def clear_mireye_cache():
+    """Clear ONLY Mireye cache entries from fetch_cache and api_cache tables."""
+    with get_pg_conn() as pg_conn:
+        if pg_conn:
+            try:
+                with pg_conn.cursor() as cursor:
+                    cursor.execute("DELETE FROM fetch_cache WHERE source = 'mireye_fetch' OR grid_key LIKE 'mireye_grid_%';")
+                    cursor.execute("DELETE FROM api_cache WHERE source = 'mireye_fetch' OR key LIKE 'mireye_grid_%';")
+                    pg_conn.commit()
+                print("[DB] Cleared PostgreSQL Mireye cache entries.")
+            except Exception as e:
+                print(f"[DB Warning] Postgres clear Mireye cache error: {e}")
+
+    try:
+        conn = get_sqlite_conn()
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM fetch_cache WHERE source = 'mireye_fetch' OR grid_key LIKE 'mireye_grid_%';")
+        cursor.execute("DELETE FROM api_cache WHERE source = 'mireye_fetch' OR key LIKE 'mireye_grid_%';")
+        conn.commit()
+        conn.close()
+        print("[DB] Cleared SQLite Mireye cache entries.")
+    except Exception as e:
+        print(f"[DB Warning] SQLite clear Mireye cache error: {e}")
+
+
 # Auto-initialize DB on import
 init_db()

@@ -6,7 +6,9 @@ Parses Mireye's nested response schema: response["fields"][field_name] -> {value
 Preserves value, source, and confidence for every field to support citations and auditability.
 """
 
+import json
 import os
+from pathlib import Path
 import requests
 from typing import Dict, Any, List, Tuple
 from db import get_cached_response, set_cached_response, get_cached_grid_batch, set_cached_grid_batch
@@ -146,21 +148,132 @@ def fetch_single_point_from_api(lat: float, lng: float, max_retries: int = 4) ->
     )
 
 
-def fetch_batch_points(points: List[Tuple[float, float]], max_workers: int = 4) -> List[Dict[str, Any]]:
+LAST_RAW_BATCH_RESPONSE: Dict[str, Any] = {}
+
+
+def fetch_batch_from_api(points: List[Tuple[float, float]], max_retries: int = 4) -> List[Dict[str, Any]]:
     """
-    Fetch Mireye hazard metrics for a list of (lat, lng) points.
+    Execute POST /v1/fetch/batch to Mireye API for a list of (lat, lng) points.
+    Chunks points into batches of max 25 locations per request.
+    Attaches Idempotency-Key UUID header and uses 120s timeout.
+    Returns normalized items in exact input order.
+    """
+    import uuid
+    import time as _time
+    global LAST_RAW_BATCH_RESPONSE
+
+    if not points:
+        return []
+
+    results = [None] * len(points)
+    chunk_size = 25
+
+    # Split missing points into chunks of at most 25 locations
+    for chunk_start in range(0, len(points), chunk_size):
+        chunk_points = points[chunk_start:chunk_start + chunk_size]
+
+        payload = {
+            "locations": [{"lat": lat, "lng": lng} for lat, lng in chunk_points],
+            "fields": FETCH_FIELDS
+        }
+
+        idempotency_key = str(uuid.uuid4())
+        headers = {
+            "Authorization": f"Bearer {MIREYE_API_KEY}",
+            "Content-Type": "application/json",
+            "Idempotency-Key": idempotency_key
+        }
+
+        # Visual log requirement
+        print(f"[Mireye] Sending batch request: {len(chunk_points)} locations", flush=True)
+
+        batch_data = None
+        for attempt in range(max_retries):
+            resp = requests.post(
+                f"{MIREYE_BASE_URL}/fetch/batch",
+                json=payload,
+                headers=headers,
+                timeout=120
+            )
+            if resp.status_code == 200:
+                batch_data = resp.json()
+                LAST_RAW_BATCH_RESPONSE = batch_data
+                # Save raw response for audit & verification
+                try:
+                    raw_out_path = Path(__file__).parent.parent / "tests" / "raw_mireye_batch_response.json"
+                    with open(raw_out_path, "w", encoding="utf-8") as f:
+                        json.dump(batch_data, f, indent=2)
+                except Exception:
+                    pass
+                break
+
+            if resp.status_code == 429:
+                try:
+                    detail = resp.json().get("detail", {})
+                    retry_after = float(detail.get("retry_after_s", 3))
+                except Exception:
+                    retry_after = 3.0
+                wait = retry_after + 0.5 * (attempt + 1)
+                _time.sleep(wait)
+                continue
+
+            raise RuntimeError(
+                f"Mireye Batch API Error (HTTP {resp.status_code}): {resp.text}\n"
+                f"Sent Payload: {payload}"
+            )
+
+        if not batch_data:
+            raise RuntimeError(f"Mireye Batch API rate-limited after {max_retries} retries.")
+
+        # Parse index-aligned results array
+        raw_results = batch_data.get("results", [])
+        for item in raw_results:
+            idx_in_chunk = item.get("index", 0)
+            overall_idx = chunk_start + idx_in_chunk
+
+            loc = chunk_points[idx_in_chunk] if idx_in_chunk < len(chunk_points) else (0.0, 0.0)
+            lat = item.get("lat", loc[0])
+            lng = item.get("lng", loc[1])
+
+            if item.get("ok", True):  # Default to True if ok flag not explicitly False
+                norm_item = normalize_mireye_item({
+                    "lat": lat,
+                    "lng": lng,
+                    "fields": item.get("fields", {})
+                })
+            else:
+                # Handle ok: false entries individually without failing the whole batch
+                norm_item = {
+                    "nearest_substation_distance_m": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "failed"},
+                    "nearest_substation_max_voltage_kv": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "failed"},
+                    "nearest_transmission_line_distance_m": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "failed"},
+                    "nearest_transmission_line_voltage_kv": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "failed"},
+                    "nearest_airport_distance_m": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "failed"},
+                    "fema_flood_zone": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "failed"},
+                    "elevation": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "failed"},
+                    "slope_degrees": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "failed"},
+                    "lat": lat,
+                    "lng": lng,
+                    "source": "Mireye Earth API (/v1/fetch/batch)",
+                    "status": "FAILED",
+                    "error": item.get("error", "Location fetch failed")
+                }
+
+            if overall_idx < len(results):
+                results[overall_idx] = norm_item
+
+    return results
+
+
+def fetch_batch_points(points: List[Tuple[float, float]]) -> List[Dict[str, Any]]:
+    """
+    Fetch Mireye hazard metrics for a list of (lat, lng) points using POST /v1/fetch/batch.
 
     1. Checks disk cache (fetch_cache) first for ~100m grid cells.
-    2. Sends individual /v1/fetch requests for cache misses via a
-       ThreadPoolExecutor (reduced to 4 workers to avoid bursting
-       past the 20 RPM Free-plan rate limit).
-    3. Each request has built-in 429 retry with backoff — rate-limited
-       calls automatically wait and succeed instead of crashing.
-    4. Stores valid returned results into fetch_cache.
-    5. Returns results in exact input order.
+    2. Sends batched /v1/fetch/batch request for cache misses.
+    3. Stores valid returned results into fetch_cache.
+    4. Returns results in exact input order.
     """
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-
     if not points:
         return []
 
@@ -168,39 +281,27 @@ def fetch_batch_points(points: List[Tuple[float, float]], max_workers: int = 4) 
     cached_map = get_cached_grid_batch(grid_keys)
 
     results = [None] * len(points)
-    missing_tasks = []  # tuples of (index, lat, lng, grid_key)
+    missing_points = []  # tuples of (original_idx, lat, lng, g_key)
 
     for idx, (lat, lng) in enumerate(points):
         g_key = grid_keys[idx]
         if g_key in cached_map:
             results[idx] = cached_map[g_key]
         else:
-            missing_tasks.append((idx, lat, lng, g_key))
+            missing_points.append((idx, lat, lng, g_key))
 
-    if missing_tasks:
-        newly_fetched_items = []
-        errors = []
+    if missing_points:
+        coords_to_fetch = [(lat, lng) for _, lat, lng, _ in missing_points]
+        fetched_items = fetch_batch_from_api(coords_to_fetch)
 
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            future_to_task = {
-                executor.submit(fetch_single_point_from_api, lat, lng): (idx, lat, lng, g_key)
-                for idx, lat, lng, g_key in missing_tasks
-            }
+        newly_fetched_db = []
+        for i, norm_item in enumerate(fetched_items):
+            orig_idx, lat, lng, g_key = missing_points[i]
+            results[orig_idx] = norm_item
+            newly_fetched_db.append((g_key, "mireye_fetch", norm_item))
 
-            for future in as_completed(future_to_task):
-                idx, lat, lng, g_key = future_to_task[future]
-                try:
-                    norm_item = future.result()
-                    results[idx] = norm_item
-                    newly_fetched_items.append((g_key, "mireye_fetch", norm_item))
-                except Exception as exc:
-                    errors.append(str(exc))
-
-        if errors:
-            raise RuntimeError(f"Failed to fetch {len(errors)} point(s) from Mireye API:\n" + "\n".join(errors))
-
-        if newly_fetched_items:
-            set_cached_grid_batch(newly_fetched_items)
+        if newly_fetched_db:
+            set_cached_grid_batch(newly_fetched_db)
 
     return results
 
