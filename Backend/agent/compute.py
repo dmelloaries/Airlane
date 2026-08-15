@@ -361,22 +361,107 @@ def forced_landing_zones(
 identify_landing_zones = forced_landing_zones
 
 
+def environmental_risk(
+    corridor_or_points: Union[Corridor, List[SamplePoint]],
+    mireye_data_list: List[Dict[str, Any]]
+) -> Dict[str, Any]:
+    """
+    Evaluate USFWS Critical Habitat intersection and environmental risk along corridor sample points.
+    Checks Mireye 'intersects_critical_habitat', 'critical_habitat_species',
+    'critical_habitat_listing_status', and 'critical_habitat_status'.
+
+    Kept as a distinct risk dimension separate from physical infrastructure hazards.
+    Pure, deterministic function.
+    """
+    if isinstance(corridor_or_points, Corridor):
+        sample_points = corridor_or_points.sample_points
+    else:
+        sample_points = corridor_or_points
+
+    intersecting_points = []
+    detected_species = set()
+    detected_listings = set()
+    detected_statuses = set()
+
+    for pt, mireye in zip(sample_points, mireye_data_list):
+        crit_val, crit_status = get_field_info(mireye, "intersects_critical_habitat", False)
+
+        is_intersecting = (crit_val is True) or (isinstance(crit_val, str) and crit_val.lower() == "true")
+
+        if is_intersecting and crit_status != "failed":
+            species_val, _ = get_field_info(mireye, "critical_habitat_species", None)
+            listing_val, _ = get_field_info(mireye, "critical_habitat_listing_status", None)
+            status_val, _ = get_field_info(mireye, "critical_habitat_status", None)
+
+            if species_val:
+                detected_species.add(species_val)
+            if listing_val:
+                detected_listings.add(listing_val)
+            if status_val:
+                detected_statuses.add(status_val)
+
+            mile_marker = pt.distance_from_start_m / 1609.34
+            intersecting_points.append({
+                "sample_index": pt.index,
+                "lat": pt.lat,
+                "lng": pt.lng,
+                "distance_from_start_m": round(pt.distance_from_start_m, 1),
+                "distance_along_route_miles": round(mile_marker, 2),
+                "species": species_val,
+                "listing_status": listing_val,
+                "habitat_status": status_val,
+                "source": "USFWS Critical Habitat (Fish & Wildlife Service)"
+            })
+
+    has_intersection = len(intersecting_points) > 0
+    species_list = sorted(list(detected_species))
+    species_str = ", ".join(species_list) if species_list else None
+    listing_str = ", ".join(sorted(list(detected_listings))) if detected_listings else None
+    status_str = ", ".join(sorted(list(detected_statuses))) if detected_statuses else None
+
+    if has_intersection:
+        desc = (
+            f"Corridor intersects designated USFWS Critical Habitat at {len(intersecting_points)} sample point(s). "
+            f"Species: {species_str or 'Protected Species'} (Listing: {listing_str or 'Designated'}, Status: {status_str or 'Final'})."
+        )
+    else:
+        desc = "No designated critical habitat intersected along evaluated corridor."
+
+    return {
+        "intersects_critical_habitat": has_intersection,
+        "has_risk": has_intersection,
+        "species": species_str,
+        "species_list": species_list,
+        "listing_status": listing_str,
+        "habitat_status": status_str,
+        "intersecting_points_count": len(intersecting_points),
+        "intersecting_points": intersecting_points,
+        "description": desc,
+        "source": "USFWS Critical Habitat (Fish & Wildlife Service)"
+    }
+
+
+# Backward-compatibility alias
+evaluate_environmental_risk = environmental_risk
+
+
 def calculate_corridor_completeness(data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Calculate completeness score and ratio for a corridor evaluation by checking input statuses.
     Counts total input data points/fields and identifies genuine UNKNOWN/FAILED degradation.
     Authoritative 'absent' status (hazard evaluated and confirmed absent) is considered complete.
+    intersects_critical_habitat=false is also a complete, honest answer, not missing data.
     """
     total_inputs = 0
     incomplete_inputs = 0
 
-    # 1. Mireye hazard points
+    # 1. Mireye hazard points (including intersects_critical_habitat)
     mireye_list = data.get("mireye_raw") or data.get("mireye_points") or data.get("mireye") or []
     if isinstance(mireye_list, list):
         for pt in mireye_list:
             if isinstance(pt, dict):
                 m_st = str(pt.get("status", "")).upper()
-                for f_key in ["nearest_substation_distance_m", "nearest_transmission_line_distance_m", "slope_degrees"]:
+                for f_key in ["nearest_substation_distance_m", "nearest_transmission_line_distance_m", "slope_degrees", "intersects_critical_habitat"]:
                     total_inputs += 1
                     if m_st in ("UNKNOWN", "FAILED"):
                         incomplete_inputs += 1
@@ -499,6 +584,22 @@ def compare_corridors(
         else:
             wind_safe = wind_data.get("is_safe", True)
 
+        env_risk = data.get("environmental_risk") or data.get("environmental")
+        if not env_risk:
+            m_raw = data.get("mireye_raw") or data.get("mireye_points")
+            if corr and m_raw:
+                env_risk = environmental_risk(corr, m_raw)
+            else:
+                env_risk = {
+                    "intersects_critical_habitat": False,
+                    "has_risk": False,
+                    "species": None,
+                    "listing_status": None,
+                    "habitat_status": None,
+                    "intersecting_points_count": 0,
+                    "source": "USFWS Critical Habitat (Fish & Wildlife Service)"
+                }
+
         completeness_info = calculate_corridor_completeness(data)
 
         ranked.append({
@@ -512,12 +613,19 @@ def compare_corridors(
             "min_trans_m": min_trans,
             "min_sub_m": min_sub,
             "wind_safe": wind_safe,
+            "environmental_risk": env_risk,
             "completeness": completeness_info
         })
 
     # Strict multi-criteria deterministic sorting
-    # 1. Ground Risk Tier (asc), 2. Hazard Exposure Score (asc), 3. Obstacle Count (asc), 4. Distance (asc)
-    ranked.sort(key=lambda x: (x["tier_rank"], x["hazard_score"], x["obstacle_count"], x["distance_m"]))
+    # 1. Ground Risk Tier (asc), 2. Environmental Habitat Intersection (asc), 3. Hazard Exposure Score (asc), 4. Obstacle Count (asc), 5. Distance (asc)
+    ranked.sort(key=lambda x: (
+        x["tier_rank"],
+        1 if x["environmental_risk"].get("intersects_critical_habitat") else 0,
+        x["hazard_score"],
+        x["obstacle_count"],
+        x["distance_m"]
+    ))
 
     winner = ranked[0]
     losers = ranked[1:]
@@ -534,6 +642,11 @@ def compare_corridors(
         if loser["tier_rank"] > winner["tier_rank"]:
             reasons.append(
                 f"Operates in a higher Part 108 ground risk tier ({loser['tier']} vs {winner['tier']})."
+            )
+        if loser["environmental_risk"].get("intersects_critical_habitat") and not winner["environmental_risk"].get("intersects_critical_habitat"):
+            sp = loser["environmental_risk"].get("species") or "Designated Protected Habitat"
+            reasons.append(
+                f"Intersects USFWS Critical Habitat ({sp})."
             )
         if loser["hazard_score"] > winner["hazard_score"]:
             reasons.append(
@@ -557,6 +670,7 @@ def compare_corridors(
             "hazard_score": loser["hazard_score"],
             "tier": loser["tier"],
             "obstacle_count": loser["obstacle_count"],
+            "environmental_risk": loser["environmental_risk"],
             "reason": " ".join(reasons)
         })
 
@@ -574,6 +688,7 @@ def compare_corridors(
             "distance_winner": dist_winner
         },
         "rejected_corridors": rejected_corridors,
+        "environmental_risks": {r["id"]: r["environmental_risk"] for r in ranked},
         "completeness": {r["id"]: r["completeness"] for r in ranked},
         "scored_metrics": {r["id"]: {
             "hazard_score": r["hazard_score"],
@@ -584,6 +699,7 @@ def compare_corridors(
             "min_transmission_distance_m": r["min_trans_m"],
             "min_substation_distance_m": r["min_sub_m"],
             "wind_safe": r["wind_safe"],
+            "environmental_risk": r["environmental_risk"],
             "completeness_ratio": r["completeness"]["completeness_ratio"],
             "completeness": r["completeness"]
         } for r in ranked}

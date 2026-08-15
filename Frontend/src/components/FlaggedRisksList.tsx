@@ -31,20 +31,29 @@ export const FlaggedRisksList: React.FC<FlaggedRisksListProps> = ({ flaggedRisks
             const sourceMatch = risk.match(/\[Source:\s*([^\]]+)\]/i);
             const sourceText = sourceMatch ? sourceMatch[1].trim() : null;
             const cleanText = sourceMatch ? risk.replace(sourceMatch[0], "").trim() : risk;
+            const isEnv = sourceText && (sourceText.includes("USFWS") || sourceText.includes("Fish & Wildlife") || sourceText.includes("Environmental"));
 
             return (
               <div
                 key={idx}
-                className="p-3 rounded-md bg-slate-50 border border-slate-200 text-xs flex items-start gap-2.5"
+                className={`p-3 rounded-md text-xs flex items-start gap-2.5 ${
+                  isEnv
+                    ? "bg-teal-50/70 border border-teal-200 text-teal-950"
+                    : "bg-slate-50 border border-slate-200 text-slate-800"
+                }`}
               >
-                <span className="text-amber-600 text-sm mt-0.5 select-none font-mono">⚠️</span>
+                <span className={`text-sm mt-0.5 select-none font-mono ${isEnv ? "text-teal-700" : "text-amber-600"}`}>
+                  {isEnv ? "🌿" : "⚠️"}
+                </span>
                 <div className="flex-1 min-w-0">
                   {sourceText && (
-                    <div className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wider mb-0.5">
+                    <div className={`text-[10px] font-mono font-bold uppercase tracking-wider mb-0.5 ${
+                      isEnv ? "text-teal-700" : "text-slate-500"
+                    }`}>
                       SOURCE: {sourceText}
                     </div>
                   )}
-                  <p className="text-xs text-slate-800 leading-relaxed font-sans">
+                  <p className="text-xs leading-relaxed font-sans">
                     {cleanText}
                   </p>
                 </div>

@@ -42,8 +42,8 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
   const [showHazards, setShowHazards] = useState<boolean>(true);
   const [showLandingPads, setShowLandingPads] = useState<boolean>(true);
   const [showCorridors, setShowCorridors] = useState<boolean>(true);
-  const [simSpeed, setSimSpeed] = useState<number>(1.0);
-  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [simSpeed] = useState<number>(1.0);
+  const [isPlaying] = useState<boolean>(true);
 
   // Hovered item tooltip
   const [hoveredItem, setHoveredItem] = useState<{ x: number; y: number; text: string } | null>(null);
@@ -1044,7 +1044,6 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
       const d3Z = 35 + Math.sin(t * 4) * 1.2;
 
       const pD3 = toIso(d3X, d3Y, d3Z);
-      const pD3Ground = toIso(d3X, d3Y, 0);
 
       // Radar ping when actively avoiding hazard
       if (isAvoiding) {

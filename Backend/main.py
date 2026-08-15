@@ -38,6 +38,7 @@ from agent.compute import (
     evaluate_wind_risk,
     forced_landing_zones,
     identify_landing_zones,
+    environmental_risk,
     compare_corridors
 )
 from agent.reason import generate_safety_case
@@ -341,6 +342,46 @@ async def stream_pipeline(
             }
         })
 
+        # Environmental critical habitat details
+        env_a = environmental_risk(corr_a.sample_points, data_a["mireye_points"])
+        env_b = environmental_risk(corr_b.sample_points, data_b["mireye_points"])
+        env_c = environmental_risk(corr_c.sample_points, data_c["mireye_points"])
+
+        elapsed = int((time.time() - t_start) * 1000)
+        has_any_env = env_a.get("intersects_critical_habitat") or env_b.get("intersects_critical_habitat") or env_c.get("intersects_critical_habitat")
+        if has_any_env:
+            intersecting_names = []
+            if env_a.get("intersects_critical_habitat"): intersecting_names.append(f"Corridor Alpha ({env_a.get('species') or 'Protected Habitat'})")
+            if env_b.get("intersects_critical_habitat"): intersecting_names.append(f"Corridor Beta ({env_b.get('species') or 'Protected Habitat'})")
+            if env_c.get("intersects_critical_habitat"): intersecting_names.append(f"Corridor Gamma ({env_c.get('species') or 'Protected Habitat'})")
+            yield sse_event("trace", {
+                "step": "environmental_habitat",
+                "message": f"⚠️ USFWS: Critical Habitat intersected along {', '.join(intersecting_names)}",
+                "status": "complete",
+                "category": "sensor",
+                "level": "warning",
+                "source_name": "USFWS Critical Habitat",
+                "agent_thought": "Queried USFWS Critical Habitat registry via Mireye. Flagged protected species habitat boundaries along candidate corridor trajectories.",
+                "elapsed_ms": elapsed,
+                "metrics": {
+                    "habitat_intersected": True,
+                    "species": env_a.get("species") or env_b.get("species") or env_c.get("species"),
+                    "listing_status": env_a.get("listing_status") or env_b.get("listing_status") or env_c.get("listing_status")
+                }
+            })
+        else:
+            yield sse_event("trace", {
+                "step": "environmental_habitat",
+                "message": "✓ USFWS: No designated critical habitat intersected along evaluated corridors",
+                "status": "complete",
+                "category": "sensor",
+                "level": "success",
+                "source_name": "USFWS Critical Habitat",
+                "agent_thought": "Cross-referenced USFWS geospatial datasets. All candidate corridors are free from protected critical habitat constraints.",
+                "elapsed_ms": elapsed,
+                "metrics": { "habitat_intersected": False, "status": "CLEAR" }
+            })
+
         # STEP 3: Compute Engine
         haz_a = score_corridor_hazard_exposure(corr_a, data_a["mireye_points"])
         haz_b = score_corridor_hazard_exposure(corr_b, data_b["mireye_points"])
@@ -362,6 +403,7 @@ async def stream_pipeline(
                 "tier": tier_a,
                 "wind": wind_a,
                 "landing_zones": lz_a,
+                "environmental_risk": env_a,
                 "mireye_raw": data_a["mireye_points"],
                 "faa_raw": data_a["faa_points"],
                 "census_raw": data_a["census_points"]
@@ -373,6 +415,7 @@ async def stream_pipeline(
                 "tier": tier_b,
                 "wind": wind_b,
                 "landing_zones": lz_b,
+                "environmental_risk": env_b,
                 "mireye_raw": data_b["mireye_points"],
                 "faa_raw": data_b["faa_points"],
                 "census_raw": data_b["census_points"]
@@ -384,6 +427,7 @@ async def stream_pipeline(
                 "tier": tier_c,
                 "wind": wind_c,
                 "landing_zones": lz_c,
+                "environmental_risk": env_c,
                 "mireye_raw": data_c["mireye_points"],
                 "faa_raw": data_c["faa_points"],
                 "census_raw": data_c["census_points"]
@@ -400,6 +444,7 @@ async def stream_pipeline(
                 "tier": tier_a,
                 "obstacles": obs_a,
                 "landing_zones": lz_a,
+                "environmental_risk": env_a,
                 "total_distance_m": corr_a.total_distance_m
             },
             "corridor_b": {
@@ -409,6 +454,7 @@ async def stream_pipeline(
                 "tier": tier_b,
                 "obstacles": obs_b,
                 "landing_zones": lz_b,
+                "environmental_risk": env_b,
                 "total_distance_m": corr_b.total_distance_m
             },
             "corridor_c": {
@@ -418,6 +464,7 @@ async def stream_pipeline(
                 "tier": tier_c,
                 "obstacles": obs_c,
                 "landing_zones": lz_c,
+                "environmental_risk": env_c,
                 "total_distance_m": corr_c.total_distance_m
             },
             "comparison": comparison

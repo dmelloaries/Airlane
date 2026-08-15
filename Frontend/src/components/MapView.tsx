@@ -480,13 +480,66 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
                 SAFE LANDING ZONE LZ-0${idx + 1}
               </div>
               <strong>${lz.description}</strong><br/>
-              <span>Clearance: ${lz.infrastructure_clearance_m.toFixed(1)}m · Slope: ${lz.slope_degrees.toFixed(1)}°</span><br/>
-              <span style="font-family: monospace; font-size: 11px; color: #64748b;">Mile ${lz.distance_along_route_miles.toFixed(2)} along route</span>
+              <div style="font-family: monospace; font-size: 11px; color: #065f46; margin-top: 2px;">
+                Clearance: ${lz.infrastructure_clearance_m.toFixed(1)}m · Slope: ${lz.slope_degrees.toFixed(1)}°
+              </div>
+              <div style="font-size: 10px; color: #64748b; margin-top: 2px;">Source: ${lz.source}</div>
             </div>
           `);
         layersGroup.addLayer(lzMarker);
       });
     }
+
+    // 7. Draw USFWS Critical Habitat Intersections if present
+    const envRisks = [
+      computed?.corridor_a?.environmental_risk,
+      computed?.corridor_b?.environmental_risk,
+      computed?.corridor_c?.environmental_risk,
+    ].filter(Boolean);
+
+    envRisks.forEach((env) => {
+      if (env?.intersects_critical_habitat && env.intersecting_points) {
+        env.intersecting_points.forEach((pt) => {
+          allLatLngs.push([pt.lat, pt.lng]);
+          const habIcon = L.divIcon({
+            className: "custom-habitat-pin",
+            html: `
+              <div style="
+                background: #042f2e;
+                color: #2dd4bf;
+                border: 1.5px solid #14b8a6;
+                border-radius: 4px;
+                padding: 2px 6px;
+                font-size: 9px;
+                font-family: monospace;
+                font-weight: bold;
+                box-shadow: 0 2px 6px rgba(20, 184, 166, 0.4);
+                white-space: nowrap;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+              ">
+                🌿 ${pt.species ? pt.species.split("(")[0].trim() : "CRITICAL HABITAT"}
+              </div>
+            `,
+            iconSize: [130, 20],
+            iconAnchor: [65, 10],
+          });
+
+          const habMarker = L.marker([pt.lat, pt.lng], { icon: habIcon }).bindPopup(`
+            <div style="font-family: sans-serif; font-size: 12px; line-height: 1.4; color: #0f172a; max-width: 260px; padding: 2px;">
+              <div style="font-family: monospace; font-size: 10px; font-weight: bold; color: #0d9488; text-transform: uppercase;">
+                🌿 USFWS CRITICAL HABITAT
+              </div>
+              <strong>${pt.species || "Protected Species"}</strong><br/>
+              <div style="font-size: 11px; color: #0f766e; margin-top: 2px;">Listing: ${pt.listing_status || "Designated"} (${pt.habitat_status || "Final"})</div>
+              <div style="font-family: monospace; font-size: 10px; color: #64748b; margin-top: 3px;">Source: ${pt.source}</div>
+            </div>
+          `);
+          layersGroup.addLayer(habMarker);
+        });
+      }
+    });
 
     // Auto-fit bounds
     if (allLatLngs.length > 0) {

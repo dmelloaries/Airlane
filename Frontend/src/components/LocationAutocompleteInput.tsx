@@ -31,7 +31,7 @@ export const LocationAutocompleteInput: React.FC<LocationAutocompleteInputProps>
   const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Perform suggestions lookup
   const loadSuggestions = useCallback(async (query: string) => {

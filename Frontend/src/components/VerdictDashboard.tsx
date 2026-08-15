@@ -31,6 +31,15 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
   const { safety_case: sc, computed_comparison: comp, computed } = result;
   const confidencePct = Math.round(sc.confidence_score * 100);
 
+  const envRiskA = computed?.corridor_a?.environmental_risk;
+  const envRiskB = computed?.corridor_b?.environmental_risk;
+  const envRiskC = computed?.corridor_c?.environmental_risk;
+  const anyHabitatIntersected = Boolean(
+    envRiskA?.intersects_critical_habitat ||
+    envRiskB?.intersects_critical_habitat ||
+    envRiskC?.intersects_critical_habitat
+  );
+
   const corridorsList = [
     {
       id: "corridor_a" as const,
@@ -42,6 +51,7 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
       hazardScore: computed?.corridor_a?.hazard_exposure?.hazard_exposure_score ?? 0.0,
       obstaclesCount: computed?.corridor_a?.obstacles?.length ?? 0,
       minClearanceM: computed?.corridor_a?.hazard_exposure?.min_transmission_distance_m ?? 68.3,
+      environmentalRisk: envRiskA,
       reason: comp?.reason || "Zero critical hazard conflicts and Tier 1 ground risk classification.",
     },
     {
@@ -54,6 +64,7 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
       hazardScore: computed?.corridor_b?.hazard_exposure?.hazard_exposure_score ?? 0.65,
       obstaclesCount: computed?.corridor_b?.obstacles?.length ?? 2,
       minClearanceM: computed?.corridor_b?.hazard_exposure?.min_transmission_distance_m ?? 42.1,
+      environmentalRisk: envRiskB,
       reason: comp?.rejected_corridors?.find((r) => r.id === "corridor_b")?.reason || "Passes within 45m of 345kV transmission tower #4B.",
     },
     {
@@ -66,10 +77,12 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
       hazardScore: computed?.corridor_c?.hazard_exposure?.hazard_exposure_score ?? 0.82,
       obstaclesCount: computed?.corridor_c?.obstacles?.length ?? 3,
       minClearanceM: computed?.corridor_c?.hazard_exposure?.min_transmission_distance_m ?? 38.0,
+      environmentalRisk: envRiskC,
       reason: comp?.rejected_corridors?.find((r) => r.id === "corridor_c")?.reason || "Traverses higher density census tract near municipal boundary.",
     },
   ];
 
+  const selectedEnvRisk = computed?.[selectedCorridor]?.environmental_risk || envRiskA;
   const recommendedData = corridorsList.find((c) => c.id === sc.recommended_corridor) || corridorsList[0];
 
   return (
@@ -481,6 +494,69 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
               <p className="text-xs text-slate-600 font-sans leading-relaxed">
                 Corridor cruise altitude is capped at 300ft AGL, providing a 100ft buffer below the FAA UASFM surface ceiling.
               </p>
+            </div>
+
+            {/* Environmental & Species Habitat Audit Section */}
+            <div className="pt-3 border-t border-slate-100 space-y-2">
+              <div className="text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">
+                ENVIRONMENTAL & SPECIES HABITAT AUDIT
+              </div>
+
+              {!anyHabitatIntersected ? (
+                /* Quiet Confirmation when NO corridor intersects */
+                <div className="flex items-center justify-between gap-2 p-2.5 rounded-md bg-emerald-50/70 border border-emerald-200/80 text-xs font-sans">
+                  <div className="flex items-center gap-2">
+                    <span className="text-emerald-600 font-bold">✓</span>
+                    <span className="text-slate-700 font-medium">
+                      No designated critical habitat intersected along evaluated corridors
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono font-bold text-emerald-800 shrink-0">
+                    [Source: USFWS Critical Habitat]
+                  </span>
+                </div>
+              ) : (
+                /* Distinct Warning Callout when corridor intersects */
+                <div className="p-3.5 rounded-md bg-teal-50 border border-teal-300 text-xs space-y-2 font-sans">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="text-xs font-bold text-teal-950 font-display flex items-center gap-1.5">
+                        <span>🌿 USFWS CRITICAL HABITAT INTERSECTION</span>
+                        <span className="text-[10px] font-mono font-bold text-teal-800 bg-teal-100 border border-teal-300 px-1 py-0.2 rounded">
+                          {selectedEnvRisk?.listing_status || "PROTECTED"}
+                        </span>
+                      </div>
+                      <div className="text-xs text-teal-700 font-mono mt-0.5">
+                        US Fish & Wildlife Service · {selectedEnvRisk?.species || "Protected Wildlife Area"}
+                      </div>
+                    </div>
+                    <span className="text-[10px] font-mono font-bold text-teal-800 shrink-0">
+                      [Source: USFWS Critical Habitat]
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-teal-900 leading-relaxed font-sans">
+                    {selectedEnvRisk?.description || `Corridor traverses designated critical habitat for ${selectedEnvRisk?.species || "protected species"}.`}
+                  </p>
+
+                  {selectedEnvRisk?.intersecting_points && selectedEnvRisk.intersecting_points.length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 font-mono text-[11px] pt-2 border-t border-teal-200">
+                      <div>
+                        <span className="text-teal-600 block text-[10px]">SPECIES:</span>
+                        <span className="font-bold text-teal-950">{selectedEnvRisk.species || "Protected Species"}</span>
+                      </div>
+                      <div>
+                        <span className="text-teal-600 block text-[10px]">LISTING STATUS:</span>
+                        <span className="font-bold text-teal-950">{selectedEnvRisk.listing_status || "Endangered"}</span>
+                      </div>
+                      <div>
+                        <span className="text-teal-600 block text-[10px]">HABITAT STATUS:</span>
+                        <span className="font-bold text-teal-950">{selectedEnvRisk.habitat_status || "Final"}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

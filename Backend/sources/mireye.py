@@ -24,7 +24,11 @@ FETCH_FIELDS = [
     "nearest_airport_distance_m",
     "fema_flood_zone",
     "elevation",
-    "slope_degrees"
+    "slope_degrees",
+    "intersects_critical_habitat",
+    "critical_habitat_listing_status",
+    "critical_habitat_species",
+    "critical_habitat_status"
 ]
 
 
@@ -68,6 +72,10 @@ def normalize_mireye_item(data: Dict[str, Any]) -> Dict[str, Any]:
     flood_zone = extract_field_info(fields_dict, "fema_flood_zone")
     elevation = extract_field_info(fields_dict, "elevation")
     slope = extract_field_info(fields_dict, "slope_degrees")
+    crit_hab_intersects = extract_field_info(fields_dict, "intersects_critical_habitat")
+    crit_hab_listing = extract_field_info(fields_dict, "critical_habitat_listing_status")
+    crit_hab_species = extract_field_info(fields_dict, "critical_habitat_species")
+    crit_hab_status = extract_field_info(fields_dict, "critical_habitat_status")
 
     return {
         # Rich field objects containing value, source, and confidence for audit citations
@@ -79,6 +87,10 @@ def normalize_mireye_item(data: Dict[str, Any]) -> Dict[str, Any]:
         "fema_flood_zone": flood_zone,
         "elevation": elevation,
         "slope_degrees": slope,
+        "intersects_critical_habitat": crit_hab_intersects,
+        "critical_habitat_listing_status": crit_hab_listing,
+        "critical_habitat_species": crit_hab_species,
+        "critical_habitat_status": crit_hab_status,
         # Conveniences for numeric calculations
         "lat": data.get("lat"),
         "lng": data.get("lng"),
@@ -194,7 +206,7 @@ def fetch_batch_from_api(points: List[Tuple[float, float]], max_retries: int = 4
                     f"{MIREYE_BASE_URL}/fetch/batch",
                     json=payload,
                     headers=headers,
-                    timeout=15
+                    timeout=60
                 )
                 if resp.status_code == 200:
                     batch_data = resp.json()
@@ -206,6 +218,11 @@ def fetch_batch_from_api(points: List[Tuple[float, float]], max_retries: int = 4
                     except Exception:
                         pass
                     break
+
+                if resp.status_code == 409:
+                    # Batch is still being computed on Mireye server — retry with same idempotency key in 2-3s
+                    _time.sleep(2.5)
+                    continue
 
                 if resp.status_code == 429:
                     try:
@@ -240,6 +257,10 @@ def fetch_batch_from_api(points: List[Tuple[float, float]], max_retries: int = 4
                         "fema_flood_zone": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "unknown"},
                         "elevation": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "unknown"},
                         "slope_degrees": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "unknown"},
+                        "intersects_critical_habitat": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "unknown"},
+                        "critical_habitat_listing_status": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "unknown"},
+                        "critical_habitat_species": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "unknown"},
+                        "critical_habitat_status": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "unknown"},
                         "lat": c_lat,
                         "lng": c_lng,
                         "source": "Mireye Earth API (/v1/fetch/batch)",
@@ -274,6 +295,10 @@ def fetch_batch_from_api(points: List[Tuple[float, float]], max_retries: int = 4
                     "fema_flood_zone": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "failed"},
                     "elevation": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "failed"},
                     "slope_degrees": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "failed"},
+                    "intersects_critical_habitat": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "failed"},
+                    "critical_habitat_listing_status": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "failed"},
+                    "critical_habitat_species": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "failed"},
+                    "critical_habitat_status": {"value": None, "source": "Mireye Earth API", "confidence": "none", "status": "failed"},
                     "lat": lat,
                     "lng": lng,
                     "source": "Mireye Earth API (/v1/fetch/batch)",

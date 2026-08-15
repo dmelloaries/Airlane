@@ -45,7 +45,8 @@ SOURCE_ENUM = {
     "INFRASTRUCTURE": "Mireye Earth API",
     "AIRSPACE": "FAA UAS Facility Map",
     "POPULATION": "US Census Bureau ACS5",
-    "WIND": "NOAA Aviation Weather"
+    "WIND": "NOAA Aviation Weather",
+    "ENVIRONMENTAL": "USFWS Critical Habitat (Fish & Wildlife Service)"
 }
 
 
@@ -79,6 +80,7 @@ def _build_compact_prompt_payload(computed_data: Dict[str, Any]) -> Dict[str, An
         tier = c_val.get("tier", {})
         obs = c_val.get("obstacles", [])
         lz = c_val.get("landing_zones", [])
+        env = c_val.get("environmental_risk", {}) or c_val.get("environmental", {})
 
         compact[c_key] = {
             "name": c_val.get("name", c_key),
@@ -88,6 +90,9 @@ def _build_compact_prompt_payload(computed_data: Dict[str, Any]) -> Dict[str, An
             "hazard_score": haz.get("hazard_exposure_score", 0.0),
             "min_transmission_m": haz.get("min_transmission_distance_m", 9999.0),
             "min_substation_m": haz.get("min_substation_distance_m", 9999.0),
+            "intersects_critical_habitat": env.get("intersects_critical_habitat", False),
+            "critical_habitat_species": env.get("species"),
+            "critical_habitat_listing_status": env.get("listing_status"),
             "flagged_obstacles_count": len(obs),
             "obstacles": [
                 {
@@ -108,7 +113,8 @@ def _build_compact_prompt_payload(computed_data: Dict[str, Any]) -> Dict[str, An
             "recommended_name": comp.get("recommended_name"),
             "comparison_reason": comp.get("comparison_reason"),
             "dimension_winners": comp.get("dimension_winners", {}),
-            "rejected_corridors": comp.get("rejected_corridors", [])
+            "rejected_corridors": comp.get("rejected_corridors", []),
+            "environmental_risks": comp.get("environmental_risks", {})
         }
 
     return compact
@@ -132,6 +138,8 @@ def _enforce_grounded_citations(raw_risks: List[Any], computed_data: Optional[Di
 
             if raw_cat in SOURCE_ENUM:
                 category = raw_cat
+            elif "ENV" in raw_cat or "HABITAT" in raw_cat or "SPECIES" in raw_cat or "USFWS" in raw_cat or "WILDLIFE" in raw_cat:
+                category = "ENVIRONMENTAL"
             elif "INFRA" in raw_cat or "OBSTACLE" in raw_cat or "LINE" in raw_cat:
                 category = "INFRASTRUCTURE"
             elif "POP" in raw_cat or "CENSUS" in raw_cat or "TIER" in raw_cat:
@@ -153,7 +161,9 @@ def _enforce_grounded_citations(raw_risks: List[Any], computed_data: Optional[Di
         # If category wasn't explicitly provided in a dict, infer from description
         if not category:
             desc_lower = clean_desc.lower()
-            if any(w in desc_lower for w in ["population", "density", "people/sq mi", "census", "part 108 tier", "tier 1", "tier 2", "tier 3", "tier 4", "tier 5", "ground risk", "residential"]):
+            if any(w in desc_lower for w in ["critical habitat", "endangered species", "usfws", "fish & wildlife", "protected habitat", "threatened species", "wildlife refuge", "houston toad", "salt marsh harvest mouse", "plover"]):
+                category = "ENVIRONMENTAL"
+            elif any(w in desc_lower for w in ["population", "density", "people/sq mi", "census", "part 108 tier", "tier 1", "tier 2", "tier 3", "tier 4", "tier 5", "ground risk", "residential"]):
                 category = "POPULATION"
             elif any(w in desc_lower for w in ["airspace", "ceiling", "class g", "class d", "class b", "class c", "class e", "uas facility", "uasfm", "agl"]):
                 category = "AIRSPACE"
@@ -186,6 +196,7 @@ def _build_deterministic_fallback(computed_data: Dict[str, Any]) -> Dict[str, An
     tier = tier_info.get("dominant_tier", "Tier 1")
     obstacles = corr_info.get("obstacles", [])
     landing_zones = corr_info.get("landing_zones", [])
+    env_info = corr_info.get("environmental_risk", {}) or corr_info.get("environmental", {})
 
     # Standardize rejected corridors structure
     rejected_corridors = []
@@ -204,6 +215,12 @@ def _build_deterministic_fallback(computed_data: Dict[str, Any]) -> Dict[str, An
             "description": obs.get("description", "High-voltage or obstacle proximity hazard.")
         })
 
+    if env_info.get("intersects_critical_habitat"):
+        structured_risks.append({
+            "category": "ENVIRONMENTAL",
+            "description": env_info.get("description", "Intersects designated USFWS Critical Habitat.")
+        })
+
     for c_id in ["corridor_a", "corridor_b", "corridor_c"]:
         if c_id != recommended:
             other_c = computed_data.get(c_id, {})
@@ -220,6 +237,12 @@ def _build_deterministic_fallback(computed_data: Dict[str, Any]) -> Dict[str, An
                 structured_risks.append({
                     "category": "POPULATION",
                     "description": f"[{other_name}] Operates in higher ground risk {other_tier} (peak density {other_density:.0f} people/sq mi)."
+                })
+            other_env = other_c.get("environmental_risk", {}) or other_c.get("environmental", {})
+            if other_env.get("intersects_critical_habitat"):
+                structured_risks.append({
+                    "category": "ENVIRONMENTAL",
+                    "description": f"[{other_name}] {other_env.get('description', 'Intersects designated USFWS Critical Habitat.')}"
                 })
 
     if not structured_risks:
@@ -250,7 +273,8 @@ def _build_deterministic_fallback(computed_data: Dict[str, Any]) -> Dict[str, An
         "caveats": [
             "FAA UAS Facility Map data is for pre-flight planning and risk screening only, not real-time flight authorization.",
             "Ground population risk classified against US Census Bureau ACS5 tract population density.",
-            "High-voltage electrical transmission and substation proximity queried via Mireye Earth API."
+            "High-voltage electrical transmission and substation proximity queried via Mireye Earth API.",
+            "Environmental critical habitat and endangered species boundaries queried via US Fish & Wildlife Service (USFWS)."
         ]
     }
 
@@ -276,7 +300,8 @@ Pre-computed flight analysis payload:
 
 GROUNDING & CITATION RULES:
 You must provide 'flagged_risks' as an array of structured objects with:
-- "category": exactly one of ["INFRASTRUCTURE", "AIRSPACE", "POPULATION", "WIND"]
+- "category": exactly one of ["INFRASTRUCTURE", "AIRSPACE", "POPULATION", "WIND", "ENVIRONMENTAL"]
+  * "ENVIRONMENTAL": USFWS critical habitat, endangered or threatened species, wildlife conservation areas
   * "INFRASTRUCTURE": electrical transmission lines, towers, substations, slope, elevation, physical obstacles
   * "AIRSPACE": airspace ceilings, controlled airspace classes (Class B/C/D/E/G), UAS Facility Map limits
   * "POPULATION": census population density, residential density, Part 108 ground risk tiers

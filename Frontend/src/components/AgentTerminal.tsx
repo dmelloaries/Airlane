@@ -108,7 +108,7 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
   events,
   isStreaming,
   onCancel,
-  title = "AIRLANE AGENT OPERATIONAL RUNTIME",
+  title,
   maxHeight = "460px",
   showControls = true,
   activeStage,
@@ -126,7 +126,7 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
 
   // Live timer during streaming
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+    let interval: ReturnType<typeof setInterval> | null = null;
     if (isStreaming) {
       if (!startTimeRef.current) {
         startTimeRef.current = Date.now();
@@ -260,7 +260,7 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
         <div className="flex items-center gap-2 text-slate-300 text-xs font-semibold tracking-wide">
           <span className="text-slate-400"></span>
           <span className="text-slate-200">airlane@macbook-pro:</span>
-          <span className="text-sky-400 font-bold">~/bvlos-stream</span>
+          <span className="text-sky-400 font-bold">{title || "~/bvlos-stream"}</span>
           <span className="text-[10px] text-slate-400 bg-black/60 px-2 py-0.5 rounded-full border border-[#333333] font-mono">
             zsh · arm64
           </span>

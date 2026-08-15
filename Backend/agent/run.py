@@ -46,6 +46,7 @@ from agent.compute import (
     corridor_tier,
     wind_risk,
     forced_landing_zones,
+    environmental_risk,
     compare_corridors
 )
 from agent.reason import generate_safety_case
@@ -141,6 +142,7 @@ async def execute_pipeline(
     tier_a = corridor_tier(data_a["census_points"])
     wind_a = wind_risk(data_a["wind"], drone_class=drone_class)
     lz_a = forced_landing_zones(corr_a.sample_points, data_a["mireye_points"])
+    env_a = environmental_risk(corr_a.sample_points, data_a["mireye_points"])
 
     # Corridor B
     haz_b = score_corridor_hazard_exposure(corr_b, data_b["mireye_points"])
@@ -148,6 +150,7 @@ async def execute_pipeline(
     tier_b = corridor_tier(data_b["census_points"])
     wind_b = wind_risk(data_b["wind"], drone_class=drone_class)
     lz_b = forced_landing_zones(corr_b.sample_points, data_b["mireye_points"])
+    env_b = environmental_risk(corr_b.sample_points, data_b["mireye_points"])
 
     # Corridor C
     haz_c = score_corridor_hazard_exposure(corr_c, data_c["mireye_points"])
@@ -155,6 +158,7 @@ async def execute_pipeline(
     tier_c = corridor_tier(data_c["census_points"])
     wind_c = wind_risk(data_c["wind"], drone_class=drone_class)
     lz_c = forced_landing_zones(corr_c.sample_points, data_c["mireye_points"])
+    env_c = environmental_risk(corr_c.sample_points, data_c["mireye_points"])
 
     corridors_eval = {
         "corridor_a": {
@@ -164,6 +168,7 @@ async def execute_pipeline(
             "tier": tier_a,
             "wind": wind_a,
             "landing_zones": lz_a,
+            "environmental_risk": env_a,
             "mireye_raw": data_a["mireye_points"],
             "faa_raw": data_a["faa_points"],
             "census_raw": data_a["census_points"]
@@ -175,6 +180,7 @@ async def execute_pipeline(
             "tier": tier_b,
             "wind": wind_b,
             "landing_zones": lz_b,
+            "environmental_risk": env_b,
             "mireye_raw": data_b["mireye_points"],
             "faa_raw": data_b["faa_points"],
             "census_raw": data_b["census_points"]
@@ -186,6 +192,7 @@ async def execute_pipeline(
             "tier": tier_c,
             "wind": wind_c,
             "landing_zones": lz_c,
+            "environmental_risk": env_c,
             "mireye_raw": data_c["mireye_points"],
             "faa_raw": data_c["faa_points"],
             "census_raw": data_c["census_points"]
@@ -203,6 +210,7 @@ async def execute_pipeline(
             "tier": tier_a,
             "obstacles": obs_a,
             "landing_zones": lz_a,
+            "environmental_risk": env_a,
             "total_distance_m": corr_a.total_distance_m
         },
         "corridor_b": {
@@ -212,6 +220,7 @@ async def execute_pipeline(
             "tier": tier_b,
             "obstacles": obs_b,
             "landing_zones": lz_b,
+            "environmental_risk": env_b,
             "total_distance_m": corr_b.total_distance_m
         },
         "corridor_c": {
@@ -221,6 +230,7 @@ async def execute_pipeline(
             "tier": tier_c,
             "obstacles": obs_c,
             "landing_zones": lz_c,
+            "environmental_risk": env_c,
             "total_distance_m": corr_c.total_distance_m
         },
         "comparison": comparison

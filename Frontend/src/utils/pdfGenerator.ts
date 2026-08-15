@@ -236,7 +236,7 @@ class SimplePdfBuilder {
   }
 }
 
-function uint8ArrayToBase64(bytes: Uint8Array): string {
+export function uint8ArrayToBase64(bytes: Uint8Array): string {
   let binary = "";
   const len = bytes.byteLength;
   for (let i = 0; i < len; i++) {

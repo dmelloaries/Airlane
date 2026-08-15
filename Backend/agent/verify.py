@@ -27,7 +27,7 @@ def verify_provenance_and_confidence(
                     unknown_count += 1
                     degraded_details.append(f"{corr_key} Mireye pt[{idx:02d}]: {m_st}")
                 else:
-                    for f_key in ["nearest_substation_distance_m", "nearest_transmission_line_distance_m", "elevation"]:
+                    for f_key in ["nearest_substation_distance_m", "nearest_transmission_line_distance_m", "elevation", "intersects_critical_habitat"]:
                         f_obj = m.get(f_key, {})
                         if isinstance(f_obj, dict):
                             st = str(f_obj.get("status", "")).lower()
@@ -74,6 +74,7 @@ def verify_provenance_and_confidence(
 
     provenance_citations = [
         {"field": "Substation & Transmission Line Distances", "source": "Mireye Earth API (/v1/fetch - EIA/HIFLD)", "status": "VERIFIED"},
+        {"field": "USFWS Critical Habitat & Species", "source": "US Fish & Wildlife Service (USFWS_CRITHAB via Mireye)", "status": "VERIFIED"},
         {"field": "Airspace Ceilings & Class", "source": "FAA UAS Facility Map (ArcGIS)", "status": "VERIFIED"},
         {"field": "Ground Population Density & Tiers", "source": "US Census Bureau ACS5 (Tract FIPS)", "status": "VERIFIED"},
         {"field": "Surface Wind & METAR", "source": "NOAA Aviation Weather API", "status": "VERIFIED"}

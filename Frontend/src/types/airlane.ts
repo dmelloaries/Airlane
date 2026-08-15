@@ -81,6 +81,29 @@ export interface WindEvaluation {
   source?: string;
 }
 
+export interface EnvironmentalRisk {
+  intersects_critical_habitat: boolean;
+  has_risk: boolean;
+  species?: string | null;
+  species_list?: string[];
+  listing_status?: string | null;
+  habitat_status?: string | null;
+  intersecting_points_count?: number;
+  intersecting_points?: Array<{
+    sample_index: number;
+    lat: number;
+    lng: number;
+    distance_from_start_m: number;
+    distance_along_route_miles: number;
+    species?: string | null;
+    listing_status?: string | null;
+    habitat_status?: string | null;
+    source: string;
+  }>;
+  description: string;
+  source: string;
+}
+
 export interface HazardExposure {
   corridor_id: string;
   hazard_exposure_score: number;
@@ -100,6 +123,7 @@ export interface ScoredCorridorMetrics {
   obstacle_count: number;
   wind_safe: boolean;
   min_transmission_m: number;
+  environmental_risk?: EnvironmentalRisk;
   completeness_ratio: number;
 }
 
@@ -128,6 +152,7 @@ export interface ComputedComparison {
     name: string;
     reason: string;
   }>;
+  environmental_risks?: Record<string, EnvironmentalRisk>;
   scored_metrics: Record<string, ScoredCorridorMetrics>;
   completeness?: Record<string, CompletenessQuality>;
 }
@@ -179,6 +204,7 @@ export interface AnalysisResult {
       tier: TierEvaluation;
       obstacles: ObstacleRisk[];
       landing_zones: LandingZone[];
+      environmental_risk?: EnvironmentalRisk;
       total_distance_m: number;
     };
     corridor_b: {
@@ -188,6 +214,7 @@ export interface AnalysisResult {
       tier: TierEvaluation;
       obstacles: ObstacleRisk[];
       landing_zones: LandingZone[];
+      environmental_risk?: EnvironmentalRisk;
       total_distance_m: number;
     };
     corridor_c: {
@@ -197,6 +224,7 @@ export interface AnalysisResult {
       tier: TierEvaluation;
       obstacles: ObstacleRisk[];
       landing_zones: LandingZone[];
+      environmental_risk?: EnvironmentalRisk;
       total_distance_m: number;
     };
     comparison: ComputedComparison;
@@ -211,6 +239,7 @@ export interface TraceEvent {
     | "corridor_generation"
     | "data_ingestion"
     | "mireye_hazards"
+    | "environmental_habitat"
     | "faa_airspace"
     | "population_density"
     | "noaa_wind"
