@@ -562,3 +562,219 @@ async def stream_analysis(
             "X-Accel-Buffering": "no"
         }
     )
+
+
+# Curated Landmark & Drone Flight Hub Presets
+PRESET_PLACES = [
+    {
+        "label": "Cubberley Community Center, Palo Alto",
+        "secondary": "4000 Middlefield Rd, Palo Alto, CA 94303",
+        "lat": 37.4172,
+        "lng": -122.1084,
+        "category": "campus",
+        "badge": "ORIGIN HUB"
+    },
+    {
+        "label": "Byxbee Park, Baylands Palo Alto",
+        "secondary": "2380 Embarcadero Rd, Palo Alto, CA 94303",
+        "lat": 37.4481,
+        "lng": -122.1063,
+        "category": "safe_zone",
+        "badge": "RECOVERY ZONE"
+    },
+    {
+        "label": "Stanford Research Park, Palo Alto",
+        "secondary": "3000 Hanover St, Palo Alto, CA 94304",
+        "lat": 37.4241,
+        "lng": -122.1480,
+        "category": "campus",
+        "badge": "INNOVATION HUB"
+    },
+    {
+        "label": "Moffett Federal Airfield Hub",
+        "secondary": "Mountain View / Sunnyvale, CA 94035",
+        "lat": 37.4161,
+        "lng": -122.0493,
+        "category": "airport",
+        "badge": "CLASS D AIRSPACE"
+    },
+    {
+        "label": "Palo Alto Airport (KPAO)",
+        "secondary": "1903 Embarcadero Rd, Palo Alto, CA 94303",
+        "lat": 37.4611,
+        "lng": -122.1150,
+        "category": "airport",
+        "badge": "FAA AIRPORT"
+    },
+    {
+        "label": "480 Berdoll Ln, Cedar Creek TX",
+        "secondary": "Cedar Creek, TX 78612 (LCRA 345kV Grid)",
+        "lat": 30.1395,
+        "lng": -97.5462,
+        "category": "infrastructure",
+        "badge": "POWER GRID"
+    },
+    {
+        "label": "912 Elm St, Cedar Creek TX",
+        "secondary": "Cedar Creek, TX 78612 (Safe Corridor Endpoint)",
+        "lat": 30.1700,
+        "lng": -97.4970,
+        "category": "safe_zone",
+        "badge": "RECOVERY POINT"
+    },
+    {
+        "label": "Googleplex HQ, Mountain View",
+        "secondary": "1600 Amphitheatre Pkwy, Mountain View, CA 94043",
+        "lat": 37.4220,
+        "lng": -122.0841,
+        "category": "campus",
+        "badge": "TECH CAMPUS"
+    },
+    {
+        "label": "Apple Park Campus, Cupertino",
+        "secondary": "1 Apple Park Way, Cupertino, CA 95014",
+        "lat": 37.3346,
+        "lng": -122.0090,
+        "category": "campus",
+        "badge": "TECH CAMPUS"
+    },
+    {
+        "label": "Shoreline Amphitheatre Park, Mountain View",
+        "secondary": "1 Amphitheatre Pkwy, Mountain View, CA 94043",
+        "lat": 37.4277,
+        "lng": -122.0805,
+        "category": "safe_zone",
+        "badge": "OPEN FIELD"
+    },
+    {
+        "label": "San Carlos Airport (KSQL)",
+        "secondary": "620 Airport Way, San Carlos, CA 94070",
+        "lat": 37.5119,
+        "lng": -122.2494,
+        "category": "airport",
+        "badge": "FAA AIRPORT"
+    },
+    {
+        "label": "Austin-Bergstrom International Airport (KAUS)",
+        "secondary": "3600 Presidential Blvd, Austin, TX 78719",
+        "lat": 30.1975,
+        "lng": -97.6664,
+        "category": "airport",
+        "badge": "CLASS C AIRSPACE"
+    },
+    {
+        "label": "NASA Ames Research Center",
+        "secondary": "Moffett Blvd, Mountain View, CA 94035",
+        "lat": 37.4089,
+        "lng": -122.0644,
+        "category": "campus",
+        "badge": "FEDERAL FACILITY"
+    }
+]
+
+
+@app.get("/places/autocomplete")
+@app.get("/places/suggest")
+async def autocomplete_places(
+    q: str = Query(..., min_length=1, description="Location search query or coordinates"),
+    limit: int = Query(6, ge=1, le=15, description="Maximum number of suggestions")
+):
+    """
+    Real-time location autocomplete and geocoding endpoint for drone mission planning.
+    Returns categorized suggestions with geographic coordinates and metadata badges.
+    """
+    import re
+    import requests
+
+    query = q.strip()
+    results: List[Dict[str, Any]] = []
+    seen_keys = set()
+
+    def add_result(item: Dict[str, Any]):
+        key = (round(item.get("lat", 0.0), 4), round(item.get("lng", 0.0), 4), item.get("label", "").lower())
+        if key not in seen_keys and len(results) < limit:
+            seen_keys.add(key)
+            results.append(item)
+
+    # 1. Direct coordinate pattern match (e.g. "37.4172, -122.1084")
+    coord_match = re.match(r"^\s*\(?\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*\)?\s*$", query)
+    if coord_match:
+        lat = float(coord_match.group(1))
+        lng = float(coord_match.group(2))
+        add_result({
+            "label": f"GPS: ({lat:.4f}, {lng:.4f})",
+            "secondary": "Direct Geographic Coordinates",
+            "lat": lat,
+            "lng": lng,
+            "category": "coordinate",
+            "badge": "COORDINATES"
+        })
+
+    # 2. Local Curated Landmarks matching
+    q_lower = query.lower()
+    for preset in PRESET_PLACES:
+        if q_lower in preset["label"].lower() or q_lower in preset["secondary"].lower():
+            add_result(preset)
+            if len(results) >= limit:
+                break
+
+    # 3. Live Geocoder Query via Photon / OSM (if more results needed)
+    if len(results) < limit and len(query) >= 2:
+        try:
+            photon_url = "https://photon.komoot.io/api/"
+            resp = requests.get(
+                photon_url,
+                params={"q": query, "limit": limit},
+                headers={"User-Agent": "AirlaneBVLOSPlanner/1.0"},
+                timeout=2.5
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                features = data.get("features", [])
+                for f in features:
+                    props = f.get("properties", {})
+                    geom = f.get("geometry", {})
+                    coords = geom.get("coordinates", [0.0, 0.0])
+                    p_lng, p_lat = coords[0], coords[1]
+
+                    name = props.get("name") or props.get("street") or query
+                    city = props.get("city") or props.get("county") or ""
+                    state = props.get("state") or props.get("country") or ""
+                    sec_parts = [p for p in [props.get("street"), city, state, props.get("postcode")] if p and p != name]
+                    secondary = ", ".join(sec_parts) if sec_parts else state
+
+                    osm_val = props.get("osm_value", "").lower()
+                    osm_key = props.get("osm_key", "").lower()
+
+                    # Determine category and badge
+                    if "aerodrome" in osm_val or "airport" in osm_val or "helipad" in osm_val:
+                        category = "airport"
+                        badge = "AIRPORT"
+                    elif "power" in osm_key or "substation" in osm_val or "line" in osm_val:
+                        category = "infrastructure"
+                        badge = "INFRASTRUCTURE"
+                    elif "park" in osm_val or "pitch" in osm_val or "garden" in osm_val or "nature_reserve" in osm_val:
+                        category = "safe_zone"
+                        badge = "OPEN FIELD"
+                    elif "university" in osm_val or "college" in osm_val or "commercial" in osm_val or "industrial" in osm_val:
+                        category = "campus"
+                        badge = "CAMPUS"
+                    else:
+                        category = "address"
+                        badge = "LOCATION"
+
+                    add_result({
+                        "label": name,
+                        "secondary": secondary,
+                        "lat": float(p_lat),
+                        "lng": float(p_lng),
+                        "category": category,
+                        "badge": badge
+                    })
+                    if len(results) >= limit:
+                        break
+        except Exception:
+            pass  # Fallback gracefully to existing results
+
+    return JSONResponse(content=results)
+

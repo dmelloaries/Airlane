@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import type { MissionInputPayload } from "../types/airlane";
+import { LocationAutocompleteInput } from "./LocationAutocompleteInput";
 import {
   MiniatureCityCanvas,
   type SelectedObjectInfo,
@@ -176,47 +177,29 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
 
           {/* Input Form */}
           <form onSubmit={handleSubmit} className="space-y-3.5 pt-1">
-            {/* Launch Input */}
-            <div className="space-y-1">
-              <label className="flex items-center justify-between text-xs font-bold text-slate-800">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-sky-600" />
-                  Launch Location
-                </span>
-                <span className="text-[10px] font-mono text-slate-400 font-normal">
-                  ORIGIN
-                </span>
-              </label>
-              <input
-                type="text"
-                value={launch}
-                onChange={(e) => setLaunch(e.target.value)}
-                placeholder="e.g. Cubberley Community Center, Palo Alto"
-                className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50/80 border border-slate-200 rounded-md text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition-all font-sans"
-                required
-              />
-            </div>
+            {/* Launch Location Auto-completion Input */}
+            <LocationAutocompleteInput
+              id="launch-input"
+              label="Launch Location"
+              tag="ORIGIN"
+              dotColor="bg-sky-600"
+              value={launch}
+              onChange={setLaunch}
+              placeholder="Search origin, airport, campus, or coordinates..."
+              required
+            />
 
-            {/* Destination Input */}
-            <div className="space-y-1">
-              <label className="flex items-center justify-between text-xs font-bold text-slate-800">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-600" />
-                  Destination
-                </span>
-                <span className="text-[10px] font-mono text-slate-400 font-normal">
-                  RECOVERY
-                </span>
-              </label>
-              <input
-                type="text"
-                value={destination}
-                onChange={(e) => setDestination(e.target.value)}
-                placeholder="e.g. Byxbee Park, Palo Alto"
-                className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50/80 border border-slate-200 rounded-md text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition-all font-sans"
-                required
-              />
-            </div>
+            {/* Destination Auto-completion Input */}
+            <LocationAutocompleteInput
+              id="destination-input"
+              label="Destination"
+              tag="RECOVERY"
+              dotColor="bg-emerald-600"
+              value={destination}
+              onChange={setDestination}
+              placeholder="Search recovery point, park, campus, or coordinates..."
+              required
+            />
 
             {/* Advanced Settings Toggle */}
             <div className="pt-1">

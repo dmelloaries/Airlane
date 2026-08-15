@@ -249,5 +249,15 @@ export interface MissionInputPayload {
   drone_class?: "micro_uav" | "small_uav" | "medium_uav";
 }
 
+export interface PlaceSuggestion {
+  label: string;
+  secondary?: string;
+  lat: number;
+  lng: number;
+  category: "airport" | "infrastructure" | "safe_zone" | "campus" | "address" | "coordinate";
+  badge?: string;
+}
+
 export const AIRLANE_VERSION = "1.0.0";
+
 

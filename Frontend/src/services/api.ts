@@ -126,3 +126,268 @@ export function streamAnalysis(
     }
   };
 }
+
+import type { PlaceSuggestion } from "../types/airlane";
+
+export const CURATED_PRESET_PLACES: PlaceSuggestion[] = [
+  {
+    label: "Cubberley Community Center, Palo Alto",
+    secondary: "4000 Middlefield Rd, Palo Alto, CA 94303",
+    lat: 37.4172,
+    lng: -122.1084,
+    category: "campus",
+    badge: "ORIGIN HUB",
+  },
+  {
+    label: "Byxbee Park, Baylands Palo Alto",
+    secondary: "2380 Embarcadero Rd, Palo Alto, CA 94303",
+    lat: 37.4481,
+    lng: -122.1063,
+    category: "safe_zone",
+    badge: "RECOVERY ZONE",
+  },
+  {
+    label: "Stanford Research Park, Palo Alto",
+    secondary: "3000 Hanover St, Palo Alto, CA 94304",
+    lat: 37.4241,
+    lng: -122.148,
+    category: "campus",
+    badge: "INNOVATION HUB",
+  },
+  {
+    label: "Moffett Federal Airfield Hub",
+    secondary: "Mountain View / Sunnyvale, CA 94035",
+    lat: 37.4161,
+    lng: -122.0493,
+    category: "airport",
+    badge: "CLASS D AIRSPACE",
+  },
+  {
+    label: "Palo Alto Airport (KPAO)",
+    secondary: "1903 Embarcadero Rd, Palo Alto, CA 94303",
+    lat: 37.4611,
+    lng: -122.115,
+    category: "airport",
+    badge: "FAA AIRPORT",
+  },
+  {
+    label: "480 Berdoll Ln, Cedar Creek TX",
+    secondary: "Cedar Creek, TX 78612 (LCRA 345kV Grid)",
+    lat: 30.1395,
+    lng: -97.5462,
+    category: "infrastructure",
+    badge: "POWER GRID",
+  },
+  {
+    label: "912 Elm St, Cedar Creek TX",
+    secondary: "Cedar Creek, TX 78612 (Safe Corridor Endpoint)",
+    lat: 30.17,
+    lng: -97.497,
+    category: "safe_zone",
+    badge: "RECOVERY POINT",
+  },
+  {
+    label: "Googleplex HQ, Mountain View",
+    secondary: "1600 Amphitheatre Pkwy, Mountain View, CA 94043",
+    lat: 37.422,
+    lng: -122.0841,
+    category: "campus",
+    badge: "TECH CAMPUS",
+  },
+  {
+    label: "Apple Park Campus, Cupertino",
+    secondary: "1 Apple Park Way, Cupertino, CA 95014",
+    lat: 37.3346,
+    lng: -122.009,
+    category: "campus",
+    badge: "TECH CAMPUS",
+  },
+  {
+    label: "Shoreline Amphitheatre Park, Mountain View",
+    secondary: "1 Amphitheatre Pkwy, Mountain View, CA 94043",
+    lat: 37.4277,
+    lng: -122.0805,
+    category: "safe_zone",
+    badge: "OPEN FIELD",
+  },
+  {
+    label: "San Carlos Airport (KSQL)",
+    secondary: "620 Airport Way, San Carlos, CA 94070",
+    lat: 37.5119,
+    lng: -122.2494,
+    category: "airport",
+    badge: "FAA AIRPORT",
+  },
+  {
+    label: "Austin-Bergstrom International Airport (KAUS)",
+    secondary: "3600 Presidential Blvd, Austin, TX 78719",
+    lat: 30.1975,
+    lng: -97.6664,
+    category: "airport",
+    badge: "CLASS C AIRSPACE",
+  },
+  {
+    label: "NASA Ames Research Center",
+    secondary: "Moffett Blvd, Mountain View, CA 94035",
+    lat: 37.4089,
+    lng: -122.0644,
+    category: "campus",
+    badge: "FEDERAL FACILITY",
+  },
+];
+
+/**
+ * Real-time location search with dual-tier fallback:
+ * 1. Backend `/places/autocomplete`
+ * 2. Photon OpenStreetMap geocoding fallback
+ * 3. Curated local presets matching
+ */
+export async function fetchPlaceSuggestions(
+  query: string,
+  limit: number = 6
+): Promise<PlaceSuggestion[]> {
+  const trimmed = query.trim();
+  if (!trimmed) {
+    return CURATED_PRESET_PLACES.slice(0, limit);
+  }
+
+  // Coordinate check
+  const coordRegex = /^\s*\(?\s*(-?\d+\.?\d*)\s*,\s*(-?\d+\.?\d*)\s*\)?\s*$/;
+  const match = trimmed.match(coordRegex);
+  const directCoordItem: PlaceSuggestion | null = match
+    ? {
+        label: `GPS: (${parseFloat(match[1]).toFixed(4)}, ${parseFloat(match[2]).toFixed(4)})`,
+        secondary: "Direct Geographic Coordinates",
+        lat: parseFloat(match[1]),
+        lng: parseFloat(match[2]),
+        category: "coordinate",
+        badge: "COORDINATES",
+      }
+    : null;
+
+  // Try Backend Autocomplete Endpoint
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2000);
+    const resp = await fetch(
+      `${API_BASE_URL}/places/autocomplete?q=${encodeURIComponent(trimmed)}&limit=${limit}`,
+      { signal: controller.signal }
+    );
+    clearTimeout(timeoutId);
+    if (resp.ok) {
+      const data = await resp.json();
+      if (Array.isArray(data) && data.length > 0) {
+        return data;
+      }
+    }
+  } catch {
+    // Backend fetch failed or timed out, gracefully fall through to client fallback
+  }
+
+  // Client-side Fallback: Local Curated Match
+  const lower = trimmed.toLowerCase();
+  const matchedPresets = CURATED_PRESET_PLACES.filter(
+    (p) =>
+      p.label.toLowerCase().includes(lower) ||
+      (p.secondary && p.secondary.toLowerCase().includes(lower))
+  );
+
+  const results: PlaceSuggestion[] = [];
+  if (directCoordItem) {
+    results.push(directCoordItem);
+  }
+  for (const p of matchedPresets) {
+    if (!results.some((r) => r.label === p.label)) {
+      results.push(p);
+      if (results.length >= limit) break;
+    }
+  }
+
+  // Client-side Fallback: Live Photon OSM query
+  if (results.length < limit && trimmed.length >= 2) {
+    try {
+      const photonResp = await fetch(
+        `https://photon.komoot.io/api/?q=${encodeURIComponent(trimmed)}&limit=${limit}`
+      );
+      if (photonResp.ok) {
+        const photonData = await photonResp.json();
+        const features = photonData?.features || [];
+        for (const f of features) {
+          const props = f.properties || {};
+          const coords = f.geometry?.coordinates || [0, 0];
+          const name = props.name || props.street || trimmed;
+          const city = props.city || props.county || "";
+          const state = props.state || props.country || "";
+          const secParts = [props.street, city, state, props.postcode].filter(
+            (s) => s && s !== name
+          );
+          const secondary = secParts.join(", ") || state;
+
+          const osmVal = (props.osm_value || "").toLowerCase();
+          const osmKey = (props.osm_key || "").toLowerCase();
+
+          let category: PlaceSuggestion["category"] = "address";
+          let badge = "LOCATION";
+
+          if (
+            osmVal.includes("aerodrome") ||
+            osmVal.includes("airport") ||
+            osmVal.includes("helipad")
+          ) {
+            category = "airport";
+            badge = "AIRPORT";
+          } else if (
+            osmKey.includes("power") ||
+            osmVal.includes("substation") ||
+            osmVal.includes("line")
+          ) {
+            category = "infrastructure";
+            badge = "INFRASTRUCTURE";
+          } else if (
+            osmVal.includes("park") ||
+            osmVal.includes("pitch") ||
+            osmVal.includes("garden") ||
+            osmVal.includes("nature")
+          ) {
+            category = "safe_zone";
+            badge = "OPEN FIELD";
+          } else if (
+            osmVal.includes("university") ||
+            osmVal.includes("college") ||
+            osmVal.includes("commercial") ||
+            osmVal.includes("industrial")
+          ) {
+            category = "campus";
+            badge = "CAMPUS";
+          }
+
+          const item: PlaceSuggestion = {
+            label: name,
+            secondary,
+            lat: coords[1],
+            lng: coords[0],
+            category,
+            badge,
+          };
+
+          if (
+            !results.some(
+              (r) =>
+                r.label.toLowerCase() === item.label.toLowerCase() ||
+                (Math.abs(r.lat - item.lat) < 0.001 &&
+                  Math.abs(r.lng - item.lng) < 0.001)
+            )
+          ) {
+            results.push(item);
+            if (results.length >= limit) break;
+          }
+        }
+      }
+    } catch {
+      // Ignore network errors on fallback
+    }
+  }
+
+  return results.length > 0 ? results : matchedPresets.slice(0, limit);
+}
+

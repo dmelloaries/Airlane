@@ -32,7 +32,7 @@ export const Header: React.FC<HeaderProps> = ({
               AirLane
             </span>
             <p className="text-[11px] text-slate-500 hidden sm:block font-mono tracking-tight mt-1">
-              Autonomous Flight Corridors · FAA Part 108 Digital Twin
+              Autonomous Flight Corridors 
             </p>
           </div>
         </div>
