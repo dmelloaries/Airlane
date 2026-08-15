@@ -107,11 +107,21 @@ export interface EnvironmentalRisk {
 export interface HazardExposure {
   corridor_id: string;
   hazard_exposure_score: number;
-  min_transmission_distance_m: number;
-  min_substation_distance_m: number;
-  total_samples: number;
-  points_under_150m: number;
-  points_under_500m: number;
+  // These fields are null when all Mireye points returned status: unknown/failed
+  // (data_insufficient=true). The internal sentinel 9999.0 is NOT exposed here.
+  min_transmission_distance_m: number | null;
+  min_substation_distance_m: number | null;
+  avg_transmission_distance_m?: number | null;
+  avg_substation_distance_m?: number | null;
+  max_point_hazard_score?: number;
+  // Data quality flags from score_corridor_hazard_exposure
+  data_insufficient?: boolean;
+  data_sufficient_points?: number;
+  total_points?: number;
+  failed_points?: number;
+  total_samples?: number;
+  points_under_150m?: number;
+  points_under_500m?: number;
   source?: string;
 }
 
@@ -181,6 +191,11 @@ export interface SafetyCase {
   landing_zones_summary: string;
   caveats: string[];
   provenance_citations: ProvenanceCitation[];
+  // Data failure fields — set when Mireye returns no usable data for the recommended corridor.
+  // When present, the safety case CANNOT be used as flight authorization basis.
+  data_failure_warning?: string;
+  data_insufficient?: boolean;
+  insufficient_data_corridors?: string[];
 }
 
 export interface AnalysisParameters {

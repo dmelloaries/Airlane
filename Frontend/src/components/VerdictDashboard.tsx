@@ -31,6 +31,11 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
   const { safety_case: sc, computed_comparison: comp, computed } = result;
   const confidencePct = Math.round(sc.confidence_score * 100);
 
+  // Data failure detection — sc.data_failure_warning is set by backend when Mireye
+  // returns no usable data for the recommended corridor. This is the primary gate
+  // that prevents all false VERIFIED/RECOMMENDED output.
+  const hasDataFailure = Boolean(sc.data_failure_warning || sc.data_insufficient);
+
   const envRiskA = computed?.corridor_a?.environmental_risk;
   const envRiskB = computed?.corridor_b?.environmental_risk;
   const envRiskC = computed?.corridor_c?.environmental_risk;
@@ -50,7 +55,12 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
     const tier = cData?.tier?.dominant_tier || (isRecommended ? sc.part108_tier : "Evaluated Tier");
     const hazardScore = cData?.hazard_exposure?.hazard_exposure_score ?? 0.0;
     const obstaclesCount = cData?.obstacles?.length ?? 0;
-    const minClearanceM = cData?.hazard_exposure?.min_transmission_distance_m ?? 9999.0;
+    // Sentinel guard: 9999.0 is an internal default for absent data and must NEVER be
+    // displayed to users as a real distance. Show null when value is missing or sentinel.
+    const rawClearance = cData?.hazard_exposure?.min_transmission_distance_m;
+    const minClearanceM: number | null = (rawClearance !== null && rawClearance !== undefined && rawClearance < 9000) ? rawClearance : null;
+    // Per-corridor data failure flag propagated from compute.py score_corridor_hazard_exposure
+    const corridorDataInsufficient = Boolean(cData?.hazard_exposure?.data_insufficient);
     const envRisk = cData?.environmental_risk;
     const rejReason = comp?.rejected_corridors?.find((r) => r.id === c.id)?.reason;
 
@@ -64,6 +74,7 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
       hazardScore,
       obstaclesCount,
       minClearanceM,
+      corridorDataInsufficient,
       environmentalRisk: envRisk,
       reason: isRecommended ? (comp?.reason || sc.primary_justification) : (rejReason || "Sub-optimal safety ranking relative to recommended route."),
     };
@@ -74,8 +85,40 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300 pb-10 font-sans">
-      {/* SUCCESS CELEBRATION TOAST CARD (Aviation Engineering Theme) */}
-      {showSuccessToast && (
+      {/* DATA FAILURE BANNER — shown when Mireye returned no usable data.
+          This replaces the green SUCCESS toast and prevents a false 'verified safe' impression. */}
+      {showSuccessToast && hasDataFailure && (
+        <div className="p-3.5 rounded-xl bg-red-50 backdrop-blur-md border border-red-300 shadow-[0_4px_16px_-4px_rgba(220,38,38,0.15),0_1px_3px_rgba(15,23,42,0.04)] flex flex-wrap items-center justify-between gap-3 animate-in fade-in duration-300">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-red-100 border border-red-300 flex items-center justify-center text-red-600 text-sm font-bold shadow-xs">
+              ⛔
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-xs text-red-900 font-display tracking-tight">
+                  DATA FETCH FAILURE — Safety Case Invalid
+                </span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-red-100 text-red-800 border border-red-300">
+                  INSUFFICIENT DATA
+                </span>
+              </div>
+              <p className="text-xs text-red-700 font-sans mt-0.5 max-w-xl">
+                {sc.data_failure_warning ||
+                  "Mireye infrastructure API returned no usable data. Hazard scores and clearance values are internal sentinel defaults — not real measurements. Do not use for flight authorization."}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowSuccessToast(false)}
+            className="px-2.5 py-1 text-red-400 hover:text-red-700 text-xs font-mono rounded-md hover:bg-red-100 border border-red-200 transition-colors cursor-pointer"
+          >
+            ✕ DISMISS
+          </button>
+        </div>
+      )}
+
+      {/* SUCCESS CELEBRATION TOAST CARD — shown only when data is genuinely sufficient */}
+      {showSuccessToast && !hasDataFailure && (
         <div className="p-3.5 rounded-xl bg-white/90 backdrop-blur-md border border-emerald-200/90 shadow-[0_4px_16px_-4px_rgba(16,185,129,0.08),0_1px_3px_rgba(15,23,42,0.04)] flex flex-wrap items-center justify-between gap-3 animate-in fade-in duration-300">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 text-sm font-bold shadow-xs">
@@ -196,14 +239,18 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-3 border-t border-slate-100 font-mono text-xs">
           <div>
             <span className="text-[10px] text-slate-400 block uppercase">HAZARD EXPOSURE</span>
-            <span className="text-sm font-bold text-emerald-700">
-              {recommendedData.hazardScore === 0 ? "LOW (0.0)" : `${recommendedData.hazardScore.toFixed(2)}`}
+            <span className={`text-sm font-bold ${hasDataFailure ? "text-amber-600" : "text-emerald-700"}`}>
+              {hasDataFailure
+                ? "N/A (no data)"
+                : (recommendedData.hazardScore === 0 ? "LOW (0.0)" : `${recommendedData.hazardScore.toFixed(2)}`)}
             </span>
           </div>
           <div>
             <span className="text-[10px] text-slate-400 block uppercase">OBSTACLE CLEARANCE</span>
             <span className="text-sm font-bold text-slate-900">
-              {recommendedData.minClearanceM.toFixed(1)} M CLEARANCE
+              {recommendedData.minClearanceM !== null
+                ? `${recommendedData.minClearanceM.toFixed(1)} M CLEARANCE`
+                : <span className="text-amber-600">N/A (no data)</span>}
             </span>
           </div>
           <div>
@@ -370,16 +417,24 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
                       </span>
                     </td>
                     <td className="py-2.5 px-3 font-bold text-slate-800">
-                      {c.hazardScore.toFixed(2)}
+                      {c.corridorDataInsufficient
+                        ? <span className="text-amber-600">N/A</span>
+                        : c.hazardScore.toFixed(2)}
                     </td>
                     <td className="py-2.5 px-3 text-slate-700">
-                      {c.minClearanceM.toFixed(1)} m
+                      {c.minClearanceM !== null
+                        ? `${c.minClearanceM.toFixed(1)} m`
+                        : <span className="text-amber-600 font-bold text-[10px]">N/A — no data</span>}
                     </td>
                     <td className="py-2.5 px-3 text-slate-700">
                       {c.distanceMi} mi ({c.distanceKm.toFixed(2)} km)
                     </td>
                     <td className="py-2.5 px-3">
-                      {c.isRecommended ? (
+                      {c.corridorDataInsufficient ? (
+                        <span className="text-amber-700 font-bold text-[10px] uppercase bg-amber-50 px-1.5 py-0.5 rounded border border-amber-300">
+                          ⚠ INSUFFICIENT DATA
+                        </span>
+                      ) : c.isRecommended ? (
                         <span className="text-sky-700 font-bold text-[10px] uppercase">
                           ★ RECOMMENDED
                         </span>

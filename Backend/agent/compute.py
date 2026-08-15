@@ -47,6 +47,11 @@ def score_corridor_hazard_exposure(
 
     Explicitly excludes 'absent' status fields from scoring and distance aggregation.
     Returns a comparable score per corridor — lower is safer.
+
+    IMPORTANT: When ALL points have absent/unknown/failed status (total data fetch failure),
+    'data_insufficient' is set to True and display distance fields are set to None.
+    The internal sentinel 9999.0 is used only for scoring comparisons and MUST NOT be
+    displayed to users or included in safety case output as a real distance value.
     Pure, deterministic function.
     """
     total_hazard_score = 0.0
@@ -55,13 +60,25 @@ def score_corridor_hazard_exposure(
     substation_distances = []
     transmission_distances = []
     point_hazard_breakdown = []
+    # Count points with genuine data failures (unknown/failed) vs. legitimate absent
+    failed_point_count = 0
+    total_point_count = len(list(zip(corridor.sample_points, mireye_data_list)))
 
     for pt, mireye in zip(corridor.sample_points, mireye_data_list):
         sub_val, sub_status = get_field_info(mireye, "nearest_substation_distance_m", None)
         trans_val, trans_status = get_field_info(mireye, "nearest_transmission_line_distance_m", None)
 
+        # Track whether this point has a genuine data failure (not just legitimate 'absent')
+        point_is_failed = (
+            (sub_status in ("unknown", "failed") or sub_val is None) and
+            (trans_status in ("unknown", "failed") or trans_val is None)
+        )
+        if point_is_failed:
+            failed_point_count += 1
+
         sub_score = 0.0
-        sub_dist_display = 9999.0
+        # Internal sentinel 9999.0 used ONLY for scoring math, never for display
+        sub_dist_display = 9999.0  # internal sentinel — do not expose in display fields
         if sub_status != "absent" and sub_val is not None:
             sub_dist = float(sub_val)
             substation_distances.append(sub_dist)
@@ -70,7 +87,7 @@ def score_corridor_hazard_exposure(
                 sub_score = (1000.0 / max(sub_dist, 10.0))
 
         trans_score = 0.0
-        trans_dist_display = 9999.0
+        trans_dist_display = 9999.0  # internal sentinel — do not expose in display fields
         if trans_status != "absent" and trans_val is not None:
             trans_dist = float(trans_val)
             transmission_distances.append(trans_dist)
@@ -86,24 +103,41 @@ def score_corridor_hazard_exposure(
         point_hazard_breakdown.append({
             "sample_index": pt.index,
             "distance_from_start_m": pt.distance_from_start_m,
-            "substation_distance_m": round(sub_dist_display, 1),
-            "transmission_distance_m": round(trans_dist_display, 1),
-            "point_risk_score": round(pt_score, 2)
+            # Use None for sentinel values in breakdown — frontend must handle None gracefully
+            "substation_distance_m": round(sub_dist_display, 1) if sub_dist_display < 9000.0 else None,
+            "transmission_distance_m": round(trans_dist_display, 1) if trans_dist_display < 9000.0 else None,
+            "point_risk_score": round(pt_score, 2),
+            "data_status": "failed" if point_is_failed else "ok"
         })
 
-    min_sub_dist = min(substation_distances) if substation_distances else 9999.0
-    min_trans_dist = min(transmission_distances) if transmission_distances else 9999.0
-    avg_sub_dist = sum(substation_distances) / len(substation_distances) if substation_distances else 9999.0
-    avg_trans_dist = sum(transmission_distances) / len(transmission_distances) if transmission_distances else 9999.0
+    # data_insufficient = True when ALL points have no real data (total fetch failure)
+    # This is the critical flag that prevents false "verified safe" output
+    data_insufficient = (total_point_count > 0 and len(substation_distances) == 0 and len(transmission_distances) == 0)
+    data_sufficient_points = total_point_count - failed_point_count
+
+    # Internal sentinel values for scoring comparisons only — NEVER display these to users
+    _min_sub_sentinel = min(substation_distances) if substation_distances else 9999.0
+    _min_trans_sentinel = min(transmission_distances) if transmission_distances else 9999.0
+    _avg_sub_sentinel = sum(substation_distances) / len(substation_distances) if substation_distances else 9999.0
+    _avg_trans_sentinel = sum(transmission_distances) / len(transmission_distances) if transmission_distances else 9999.0
 
     return {
         "corridor_id": corridor.id,
         "hazard_exposure_score": round(total_hazard_score, 2),
         "max_point_hazard_score": round(max_point_score, 2),
-        "min_substation_distance_m": round(min_sub_dist, 1),
-        "min_transmission_distance_m": round(min_trans_dist, 1),
-        "avg_substation_distance_m": round(avg_sub_dist, 1),
-        "avg_transmission_distance_m": round(avg_trans_dist, 1),
+        # Display fields: None when no real data exists (sentinel must not be shown to users)
+        "min_substation_distance_m": round(_min_sub_sentinel, 1) if substation_distances else None,
+        "min_transmission_distance_m": round(_min_trans_sentinel, 1) if transmission_distances else None,
+        "avg_substation_distance_m": round(_avg_sub_sentinel, 1) if substation_distances else None,
+        "avg_transmission_distance_m": round(_avg_trans_sentinel, 1) if transmission_distances else None,
+        # Internal scoring sentinels (safe to use for compare_corridors math only)
+        "_min_substation_sentinel": _min_sub_sentinel,
+        "_min_transmission_sentinel": _min_trans_sentinel,
+        # Data quality metadata
+        "data_insufficient": data_insufficient,
+        "data_sufficient_points": data_sufficient_points,
+        "total_points": total_point_count,
+        "failed_points": failed_point_count,
         "point_breakdown": point_hazard_breakdown
     }
 
@@ -566,7 +600,8 @@ def compare_corridors(
         c_name = corr.name if hasattr(corr, "name") else data.get("name", c_id)
         c_dist = corr.total_distance_m if hasattr(corr, "total_distance_m") else float(data.get("total_distance_m", 0.0))
 
-        h_score = data.get("hazard_exposure", {}).get("hazard_exposure_score", 0.0)
+        haz_exposure = data.get("hazard_exposure", {})
+        h_score = haz_exposure.get("hazard_exposure_score", 0.0)
         t_obj = data.get("tier", {})
         t_dominant = t_obj.get("dominant_tier", "Tier 1")
         t_rank = tier_rank_map.get(t_dominant, 1)
@@ -574,8 +609,12 @@ def compare_corridors(
         obstacles = data.get("obstacles", [])
         obs_count = len(obstacles)
 
-        min_trans = data.get("hazard_exposure", {}).get("min_transmission_distance_m", 9999.0)
-        min_sub = data.get("hazard_exposure", {}).get("min_substation_distance_m", 9999.0)
+        # Use internal sentinels for sort math — these are not display values
+        min_trans = haz_exposure.get("_min_transmission_sentinel", haz_exposure.get("min_transmission_distance_m") or 9999.0)
+        min_sub = haz_exposure.get("_min_substation_sentinel", haz_exposure.get("min_substation_distance_m") or 9999.0)
+
+        # Detect total data failure for this corridor
+        data_insufficient = bool(haz_exposure.get("data_insufficient", False))
 
         wind_data = data.get("wind", {})
         wind_status = str(wind_data.get("status", "")).upper()
@@ -614,12 +653,18 @@ def compare_corridors(
             "min_sub_m": min_sub,
             "wind_safe": wind_safe,
             "environmental_risk": env_risk,
-            "completeness": completeness_info
+            "completeness": completeness_info,
+            "data_insufficient": data_insufficient
         })
 
-    # Strict multi-criteria deterministic sorting
-    # 1. Ground Risk Tier (asc), 2. Environmental Habitat Intersection (asc), 3. Hazard Exposure Score (asc), 4. Obstacle Count (asc), 5. Distance (asc)
+    # Strict multi-criteria deterministic sorting.
+    # Data-insufficient corridors are always ranked LAST regardless of their numeric scores,
+    # because a score of 0.0 on absent data must never be treated as "safest".
+    # 1. Data failure (True = penalized to last), 2. Ground Risk Tier (asc),
+    # 3. Environmental Habitat Intersection (asc), 4. Hazard Exposure Score (asc),
+    # 5. Obstacle Count (asc), 6. Distance (asc)
     ranked.sort(key=lambda x: (
+        1 if x["data_insufficient"] else 0,
         x["tier_rank"],
         1 if x["environmental_risk"].get("intersects_critical_habitat") else 0,
         x["hazard_score"],
@@ -674,13 +719,24 @@ def compare_corridors(
             "reason": " ".join(reasons)
         })
 
+    # Data quality summary — which corridors had total data failure
+    data_quality_flags = {r["id"]: r["data_insufficient"] for r in ranked}
+    any_corridor_data_insufficient = any(data_quality_flags.values())
+
+    comparison_reason = (
+        f"{winner['name']} selected as optimal BVLOS flight corridor: "
+        f"lowest ground risk ({winner['tier']}) and lowest hazard exposure score ({winner['hazard_score']:.1f})."
+    )
+    if winner["data_insufficient"]:
+        comparison_reason = (
+            f"WARNING: {winner['name']} selected by default — ALL corridors returned insufficient data. "
+            f"Hazard scores are sentinel defaults and DO NOT represent real safety measurements."
+        )
+
     return {
         "recommended_corridor": winner["id"],
         "recommended_name": winner["name"],
-        "comparison_reason": (
-            f"{winner['name']} selected as optimal BVLOS flight corridor: "
-            f"lowest ground risk ({winner['tier']}) and lowest hazard exposure score ({winner['hazard_score']:.1f})."
-        ),
+        "comparison_reason": comparison_reason,
         "dimension_winners": {
             "tier_winner": tier_winner,
             "hazard_exposure_winner": hazard_winner,
@@ -690,17 +746,21 @@ def compare_corridors(
         "rejected_corridors": rejected_corridors,
         "environmental_risks": {r["id"]: r["environmental_risk"] for r in ranked},
         "completeness": {r["id"]: r["completeness"] for r in ranked},
+        "data_quality_flags": data_quality_flags,
+        "any_corridor_data_insufficient": any_corridor_data_insufficient,
         "scored_metrics": {r["id"]: {
             "hazard_score": r["hazard_score"],
             "tier": r["tier"],
             "tier_rank": r["tier_rank"],
             "obstacle_count": r["obstacle_count"],
             "distance_m": r["distance_m"],
-            "min_transmission_distance_m": r["min_trans_m"],
-            "min_substation_distance_m": r["min_sub_m"],
+            # Display fields: None when no real data (sentinel must not be shown to users)
+            "min_transmission_distance_m": None if r["data_insufficient"] else r["min_trans_m"],
+            "min_substation_distance_m": None if r["data_insufficient"] else r["min_sub_m"],
             "wind_safe": r["wind_safe"],
             "environmental_risk": r["environmental_risk"],
             "completeness_ratio": r["completeness"]["completeness_ratio"],
-            "completeness": r["completeness"]
+            "completeness": r["completeness"],
+            "data_insufficient": r["data_insufficient"]
         } for r in ranked}
     }

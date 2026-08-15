@@ -54,15 +54,18 @@ export interface FormattedPart108Export {
   candidate_corridors_comparison: Array<{
     id: string;
     name: string;
-    status: "RECOMMENDED" | "REJECTED";
+    status: "RECOMMENDED" | "REJECTED" | "INSUFFICIENT_DATA";
     distance_m: number;
     distance_miles: number;
     tier: string;
-    hazard_score: number;
+    // null when data_insufficient=true (Mireye returned no usable data for this corridor)
+    hazard_score: number | null;
     obstacle_count: number;
-    min_lateral_clearance_m: number;
+    // null when data_insufficient=true (internal sentinel 9999.0 is NOT exposed)
+    min_lateral_clearance_m: number | null;
     wind_safe: boolean;
     rejection_reason?: string;
+    data_insufficient?: boolean;
   }>;
   hazard_and_obstacle_registry: Array<{
     id: string;
@@ -238,21 +241,27 @@ export function buildFormattedPart108Json(result: AnalysisResult): FormattedPart
     const tier = cData?.tier?.dominant_tier || (isRec ? sc.part108_tier : "Evaluated Tier");
     const hazScore = cData?.hazard_exposure?.hazard_exposure_score ?? 0.0;
     const obsCount = cData?.obstacles?.length ?? 0;
-    const minClearance = cData?.hazard_exposure?.min_transmission_distance_m ?? 9999.0;
+    // Sentinel guard: 9999.0 is an internal default that must NEVER appear in exported output.
+    // Callers (PDF renderer, JSON consumer) must handle null gracefully.
+    const rawClearance = cData?.hazard_exposure?.min_transmission_distance_m;
+    const minClearance: number | null = (rawClearance !== null && rawClearance !== undefined && rawClearance < 9000)
+      ? rawClearance : null;
+    const corridorDataInsufficient = Boolean(cData?.hazard_exposure?.data_insufficient);
     const rejReason = comp?.rejected_corridors?.find((r) => r.id === c.id)?.reason;
 
     return {
       id: c.id,
       name: isRec ? (sc.recommended_name || c.name) : c.name,
-      status: isRec ? "RECOMMENDED" : "REJECTED",
+      status: corridorDataInsufficient ? "INSUFFICIENT_DATA" : (isRec ? "RECOMMENDED" : "REJECTED"),
       distance_m: Math.round(distM),
       distance_miles: distMi,
       tier,
-      hazard_score: hazScore,
+      hazard_score: corridorDataInsufficient ? null : hazScore,
       obstacle_count: obsCount,
       min_lateral_clearance_m: minClearance,
       wind_safe: cData?.wind?.is_safe ?? true,
       rejection_reason: isRec ? undefined : (rejReason || "Sub-optimal multi-objective score relative to recommended corridor."),
+      data_insufficient: corridorDataInsufficient || undefined,
     };
   });
 
@@ -295,9 +304,13 @@ export function buildFormattedPart108Json(result: AnalysisResult): FormattedPart
       export_timestamp_iso: now.toISOString(),
       export_timestamp_local: `${dateStr} ${timeStr}`,
       filing_id: filingId,
-      status: "APPROVED_FOR_BVLOS_DISPATCH",
+      status: sc.data_failure_warning ? "DATA_FAILURE_INVALID" : "APPROVED_FOR_BVLOS_DISPATCH",
       jurisdiction: "United States (FAA Part 108 Notice of Proposed Rulemaking Framework)",
       compliance_framework: "FAA Part 108 / SORA 2.5 Quantitative Ground Risk Standard",
+      ...(sc.data_failure_warning ? {
+        data_quality_warning: "INSUFFICIENT_DATA — Mireye infrastructure metrics unavailable. Sentinel default values present. DO NOT use for flight authorization.",
+        data_failure_detail: sc.data_failure_warning
+      } : {}),
     },
     mission_profile: {
       launch: {

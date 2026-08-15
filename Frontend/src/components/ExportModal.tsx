@@ -179,7 +179,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ result, onClose }) => 
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 block uppercase">PART 108 TIER</span>
-                  <span className="font-bold text-emerald-700">{formattedData.verdict_and_safety_case.part108_tier} (Minimal Risk)</span>
+                  <span className="font-bold text-sky-800">{formattedData.verdict_and_safety_case.part108_tier}</span>
                 </div>
                 <div>
                   <span className="text-[10px] text-slate-400 block uppercase">DISTANCE / TIME</span>

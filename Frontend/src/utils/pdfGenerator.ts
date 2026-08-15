@@ -73,16 +73,29 @@ class SimplePdfBuilder {
     const color = options.color || [0.1, 0.1, 0.1];
     const align = options.align || "left";
 
+    // Map common unicode symbols to ASCII equivalents for standard PDF Type-1 Helvetica font
+    const asciiText = (text || "")
+      .replace(/[•●]/g, "* ")
+      .replace(/[·]/g, "| ")
+      .replace(/[°]/g, " deg ")
+      .replace(/[✓✔]/g, "[OK] ")
+      .replace(/[✗✘]/g, "[X] ")
+      .replace(/[★☆]/g, "* ")
+      .replace(/[—–]/g, "-")
+      .replace(/[""]/g, '"')
+      .replace(/['']/g, "'")
+      .replace(/[^\x20-\x7E]/g, " ");
+
     // Escape special PDF characters: \ ( )
-    const cleanText = text
+    const cleanText = asciiText
       .replace(/\\/g, "\\\\")
       .replace(/\(/g, "\\(")
       .replace(/\)/g, "\\)");
 
     // Rough text width estimation for alignment
-    let approxWidth = text.length * size * 0.52;
-    if (font === "F2") approxWidth = text.length * size * 0.58;
-    if (font === "F3") approxWidth = text.length * size * 0.6;
+    let approxWidth = cleanText.length * size * 0.52;
+    if (font === "F2") approxWidth = cleanText.length * size * 0.58;
+    if (font === "F3") approxWidth = cleanText.length * size * 0.6;
 
     let targetX = x;
     if (align === "center") targetX = x - approxWidth / 2;
@@ -136,8 +149,12 @@ class SimplePdfBuilder {
       { font: "F1", size: 8, color: [0.7, 0.85, 0.98] }
     );
 
-    // Right tag
-    this.drawBadge("FAA PART 108 VERIFIED", this.width - 170, 18, [0.05, 0.45, 0.3], [1, 1, 1], 8);
+    // Right tag — shown in red when data is insufficient
+    if ((subtitle as string).includes("DATA_FAILURE") || (title as string).includes("INSUFFICIENT")) {
+      this.drawBadge("DATA FAILURE -- NOT VALID", this.width - 200, 18, [0.8, 0.1, 0.1], [1, 1, 1], 8);
+    } else {
+      this.drawBadge("FAA PART 108 VERIFIED", this.width - 170, 18, [0.05, 0.45, 0.3], [1, 1, 1], 8);
+    }
 
     // Section title bar
     this.drawRect(40, 68, this.width - 80, 24, [0.94, 0.96, 0.98], [0.85, 0.88, 0.92], 1);
@@ -320,26 +337,56 @@ export async function generatePart108Pdf(result: AnalysisResult, customFilename?
       color: [0.06, 0.12, 0.22],
     });
 
-    y += 54;
-
-    // Autonomous Recommendation Banner
-    pdf.drawRect(40, y, 532, 85, [0.93, 0.98, 0.95], [0.5, 0.8, 0.6], 1.5);
-    pdf.drawText("AUTONOMOUS SAFETY CASE VERDICT", 52, y + 12, { font: "F2", size: 8, color: [0.1, 0.5, 0.3] });
-    pdf.drawText(
-      `${data.verdict_and_safety_case.recommended_corridor_name} IS THE SAFEST FLIGHT CORRIDOR`,
-      52,
-      y + 28,
-      { font: "F2", size: 12, color: [0.04, 0.35, 0.2] }
+    // Check for data failure at the report level
+    const hasDataFailure = Boolean(
+      (data.metadata as Record<string, unknown>).data_quality_warning ||
+      data.verdict_and_safety_case.confidence_score <= 0.30
     );
 
-    pdf.drawBadge(`FAA ${data.verdict_and_safety_case.part108_tier.toUpperCase()}`, 400, y + 10, [0.1, 0.6, 0.35], [1, 1, 1], 8);
+    // Autonomous Recommendation Banner — red when data failure, green when normal
+    const bannerBgColor: [number, number, number] = hasDataFailure ? [0.99, 0.94, 0.94] : [0.93, 0.98, 0.95];
+    const bannerBorderColor: [number, number, number] = hasDataFailure ? [0.85, 0.3, 0.3] : [0.5, 0.8, 0.6];
+    const bannerTextColor: [number, number, number] = hasDataFailure ? [0.7, 0.1, 0.1] : [0.1, 0.5, 0.3];
+    const bannerTitleColor: [number, number, number] = hasDataFailure ? [0.6, 0.05, 0.05] : [0.04, 0.35, 0.2];
+
+    if (hasDataFailure) {
+      // Data failure warning box before the verdict banner
+      pdf.drawRect(40, y, 532, 40, [0.99, 0.94, 0.94], [0.8, 0.2, 0.2], 2);
+      pdf.drawText("[!] DATA FETCH FAILURE -- SAFETY CASE INVALID", 52, y + 8, { font: "F2", size: 9, color: [0.7, 0.1, 0.1] });
+      pdf.drawText(
+        "Mireye API returned no usable data. Hazard scores are sentinel defaults, NOT real measurements.",
+        52, y + 22, { font: "F1", size: 7.5, color: [0.6, 0.15, 0.15] }
+      );
+      pdf.drawText(
+        "DO NOT use this document for flight authorization. Re-run the route or verify API connectivity.",
+        52, y + 32, { font: "F1", size: 7.5, color: [0.6, 0.15, 0.15] }
+      );
+      y += 52;
+    }
+
+    pdf.drawRect(40, y, 532, 85, bannerBgColor, bannerBorderColor, 1.5);
+    pdf.drawText(hasDataFailure ? "DATA FAILURE -- SAFETY CASE INVALID" : "AUTONOMOUS SAFETY CASE VERDICT", 52, y + 12, { font: "F2", size: 8, color: bannerTextColor });
+    pdf.drawText(
+      hasDataFailure
+        ? `${data.verdict_and_safety_case.recommended_corridor_name} -- INSUFFICIENT DATA`
+        : `${data.verdict_and_safety_case.recommended_corridor_name} IS THE SAFEST FLIGHT CORRIDOR`,
+      52,
+      y + 28,
+      { font: "F2", size: 12, color: bannerTitleColor }
+    );
+
+    if (hasDataFailure) {
+      pdf.drawBadge("INSUFFICIENT DATA", 380, y + 10, [0.75, 0.35, 0.1], [1, 1, 1], 8);
+    } else {
+      pdf.drawBadge(`FAA ${data.verdict_and_safety_case.part108_tier.toUpperCase()}`, 400, y + 10, [0.1, 0.6, 0.35], [1, 1, 1], 8);
+    }
     pdf.drawBadge(`${Math.round(data.verdict_and_safety_case.confidence_score * 100)}% CONFIDENCE`, 470, y + 10, [0.01, 0.45, 0.75], [1, 1, 1], 8);
 
     pdf.drawText(
       "Primary Justification: " + data.verdict_and_safety_case.primary_justification,
       52,
       y + 48,
-      { font: "F1", size: 8.5, color: [0.15, 0.25, 0.2] }
+      { font: "F1", size: 8.5, color: bannerTitleColor }
     );
 
     y += 98;
@@ -360,19 +407,32 @@ export async function generatePart108Pdf(result: AnalysisResult, customFilename?
 
     data.candidate_corridors_comparison.forEach((c, idx) => {
       const isRec = c.status === "RECOMMENDED";
-      const rowBg: [number, number, number] = isRec ? [0.92, 0.97, 0.94] : idx % 2 === 0 ? [0.98, 0.98, 0.99] : [1, 1, 1];
+      const isInsufficient = c.status === "INSUFFICIENT_DATA";
+      const rowBg: [number, number, number] = isInsufficient
+        ? [0.99, 0.97, 0.93]
+        : isRec ? [0.92, 0.97, 0.94] : idx % 2 === 0 ? [0.98, 0.98, 0.99] : [1, 1, 1];
       pdf.drawRect(40, y, 532, 20, rowBg, [0.88, 0.9, 0.93], 0.5);
 
       pdf.drawText(c.name, 46, y + 6, { font: isRec ? "F2" : "F1", size: 8, color: [0.08, 0.12, 0.2] });
       pdf.drawText(c.tier, 180, y + 6, { font: "F3", size: 8, color: [0.2, 0.3, 0.4] });
-      pdf.drawText(c.hazard_score.toFixed(2), 270, y + 6, { font: "F3", size: 8, color: [0.2, 0.3, 0.4] });
-      pdf.drawText(`${c.min_lateral_clearance_m.toFixed(1)} m`, 360, y + 6, { font: "F3", size: 8, color: [0.2, 0.3, 0.4] });
+      // Sentinel guard: null hazard_score means data was absent — show N/A, not 0.00
+      const hazardStr = (c.hazard_score !== null && c.hazard_score !== undefined)
+        ? (c.hazard_score as number).toFixed(2)
+        : "N/A";
+      pdf.drawText(hazardStr, 270, y + 6, { font: "F3", size: 8, color: isInsufficient ? [0.7, 0.4, 0.1] : [0.2, 0.3, 0.4] });
+      // Sentinel guard: null clearance means data was absent — show N/A, not 9999.0 m
+      const clearanceStr = (c.min_lateral_clearance_m !== null && c.min_lateral_clearance_m !== undefined && (c.min_lateral_clearance_m as number) < 9000)
+        ? `${(c.min_lateral_clearance_m as number).toFixed(1)} m`
+        : "N/A";
+      pdf.drawText(clearanceStr, 360, y + 6, { font: "F3", size: 8, color: isInsufficient ? [0.7, 0.4, 0.1] : [0.2, 0.3, 0.4] });
       pdf.drawText(`${c.distance_miles} mi`, 440, y + 6, { font: "F3", size: 8, color: [0.2, 0.3, 0.4] });
 
-      if (isRec) {
+      if (isInsufficient) {
+        pdf.drawBadge("NO DATA", 495, y + 3, [0.75, 0.35, 0.1], [1, 1, 1], 6.5);
+      } else if (isRec) {
         pdf.drawBadge("RECOMMENDED", 495, y + 3, [0.1, 0.6, 0.35], [1, 1, 1], 6.5);
       } else {
-      pdf.drawBadge("REJECTED", 505, y + 3, [0.8, 0.2, 0.2], [1, 1, 1], 6.5);
+        pdf.drawBadge("REJECTED", 505, y + 3, [0.8, 0.2, 0.2], [1, 1, 1], 6.5);
       }
       y += 20;
     });

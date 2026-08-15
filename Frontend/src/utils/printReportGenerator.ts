@@ -321,10 +321,18 @@ export function openPrintableReport(result: AnalysisResult): void {
       <span class="badge badge-verified">${data.verdict_and_safety_case.part108_tier.toUpperCase()}</span>
     </div>
 
-    <div class="card-highlight">
+    ${(data.metadata as Record<string, unknown>).data_quality_warning ? `
+    <div style="background:#fff1f2;border:2px solid #f43f5e;border-radius:8px;padding:14px 18px;margin-bottom:16px;">
+      <div style="font-size:11pt;font-weight:700;color:#9f1239;margin-bottom:6px;">[!] DATA FETCH FAILURE &#8212; SAFETY CASE INVALID</div>
+      <p style="font-size:8.5pt;color:#7f1d1d;line-height:1.5;">${(data.metadata as Record<string, unknown>).data_quality_warning}</p>
+      <p style="font-size:8pt;color:#be123c;margin-top:6px;font-weight:600;">DO NOT use this document for flight authorization. Re-run the route or verify Mireye API connectivity.</p>
+    </div>
+    ` : ''}
+
+    <div class="card-highlight" style="${(data.metadata as Record<string, unknown>).data_quality_warning ? 'background:#fff1f2;border-color:#fca5a5;' : ''}">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-        <div style="font-size: 13pt; font-weight: 700; color: #065f46;">
-          ★ ${data.verdict_and_safety_case.recommended_corridor_name} Approved
+        <div style="font-size: 13pt; font-weight: 700; color: ${(data.metadata as Record<string, unknown>).data_quality_warning ? '#9f1239' : '#065f46'};">
+          ${(data.metadata as Record<string, unknown>).data_quality_warning ? '&#9888; INSUFFICIENT DATA' : `&#9733; ${data.verdict_and_safety_case.recommended_corridor_name} Approved`}
         </div>
         <div class="font-mono" style="font-size: 9pt; font-weight: 700; color: #0284c7;">
           Confidence: ${Math.round(data.verdict_and_safety_case.confidence_score * 100)}%
@@ -355,22 +363,34 @@ export function openPrintableReport(result: AnalysisResult): void {
       <tbody>
         ${data.candidate_corridors_comparison
           .map(
-            (c) => `
-          <tr style="${c.status === "RECOMMENDED" ? "background: #f0fdf4; font-weight: 600;" : ""}">
+            (c) => {
+              // Sentinel guard: null means data was absent — show N/A, not 0.00 or 9999.0 m
+              const hazardStr = (c.hazard_score !== null && c.hazard_score !== undefined)
+                ? (c.hazard_score as number).toFixed(2)
+                : 'N/A';
+              const clearanceStr = (c.min_lateral_clearance_m !== null && c.min_lateral_clearance_m !== undefined && (c.min_lateral_clearance_m as number) < 9000)
+                ? `${(c.min_lateral_clearance_m as number).toFixed(1)} m`
+                : 'N/A';
+              const isInsufficient = c.status === 'INSUFFICIENT_DATA';
+              const rowStyle = isInsufficient
+                ? 'background: #fffbeb; color: #92400e;'
+                : c.status === 'RECOMMENDED' ? 'background: #f0fdf4; font-weight: 600;' : '';
+              const verdictBadge = isInsufficient
+                ? `<span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;">&#9888; INSUFFICIENT DATA</span>`
+                : c.status === 'RECOMMENDED'
+                  ? `<span class="badge badge-verified">&#9733; RECOMMENDED</span>`
+                  : `<span class="badge badge-rose">REJECTED</span>`;
+              return `
+          <tr style="${rowStyle}">
             <td><strong>${c.name}</strong></td>
             <td class="font-mono">${c.tier}</td>
-            <td class="font-mono">${c.hazard_score.toFixed(2)}</td>
-            <td class="font-mono">${c.min_lateral_clearance_m.toFixed(1)} m</td>
+            <td class="font-mono">${hazardStr}</td>
+            <td class="font-mono">${clearanceStr}</td>
             <td class="font-mono">${c.distance_miles} mi</td>
-            <td>
-              ${
-                c.status === "RECOMMENDED"
-                  ? `<span class="badge badge-verified">★ RECOMMENDED</span>`
-                  : `<span class="badge badge-rose">REJECTED</span>`
-              }
-            </td>
+            <td>${verdictBadge}</td>
           </tr>
-        `
+        `;
+            }
           )
           .join("")}
       </tbody>

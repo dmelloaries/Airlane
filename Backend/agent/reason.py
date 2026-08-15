@@ -184,6 +184,11 @@ def _build_deterministic_fallback(computed_data: Dict[str, Any]) -> Dict[str, An
     """
     Generate high-fidelity deterministic safety case directly from pure compute engine output.
     Ensures sub-millisecond execution if LLM API is unavailable, rate-limited, or degraded.
+
+    IMPORTANT: If any corridor's hazard data is insufficient (data_insufficient=True from
+    score_corridor_hazard_exposure), the returned safety case is flagged with data_failure_warning
+    and confidence_score is hard-capped at 0.30. A safety case on missing data must NEVER be
+    presented as "approved" or "verified safe".
     """
     comparison = computed_data.get("comparison", {})
     recommended = comparison.get("recommended_corridor", "corridor_a")
@@ -197,6 +202,18 @@ def _build_deterministic_fallback(computed_data: Dict[str, Any]) -> Dict[str, An
     obstacles = corr_info.get("obstacles", [])
     landing_zones = corr_info.get("landing_zones", [])
     env_info = corr_info.get("environmental_risk", {}) or corr_info.get("environmental", {})
+
+    # Detect data failure across all corridors
+    rec_haz = corr_info.get("hazard_exposure", {})
+    rec_data_insufficient = bool(rec_haz.get("data_insufficient", False))
+    # Also check if landing zones AND obstacles are both empty AND hazard score is 0
+    # as a secondary signal for data failure even if the flag wasn't propagated
+    hazard_score = rec_haz.get("hazard_exposure_score", 0.0)
+    silent_failure = (
+        rec_data_insufficient or
+        (hazard_score == 0.0 and len(landing_zones) == 0 and len(obstacles) == 0 and
+         rec_haz.get("min_transmission_distance_m") is None)
+    )
 
     # Standardize rejected corridors structure
     rejected_corridors = []
@@ -246,10 +263,16 @@ def _build_deterministic_fallback(computed_data: Dict[str, Any]) -> Dict[str, An
                 })
 
     if not structured_risks:
-        structured_risks.append({
-            "category": "INFRASTRUCTURE",
-            "description": "No critical high-voltage transmission or substation hazards detected along recommended route."
-        })
+        if silent_failure:
+            structured_risks.append({
+                "category": "INFRASTRUCTURE",
+                "description": "Mireye infrastructure API returned no usable data for this route. All hazard scores are internal sentinel defaults, not real measurements."
+            })
+        else:
+            structured_risks.append({
+                "category": "INFRASTRUCTURE",
+                "description": "No critical high-voltage transmission or substation hazards detected along recommended route."
+            })
 
     flagged_risks = _enforce_grounded_citations(structured_risks, computed_data)
 
@@ -260,16 +283,25 @@ def _build_deterministic_fallback(computed_data: Dict[str, Any]) -> Dict[str, An
         f"No dedicated open landing zones identified with required clearance buffer. [Source: {SOURCE_ENUM['INFRASTRUCTURE']}]"
     )
 
-    return {
+    # Build base result
+    base_confidence = 0.95
+    if silent_failure:
+        base_confidence = 0.30  # Hard cap — cannot claim confidence on absent data
+
+    verdict_title = f"Approved Route: {rec_name} — Part 108 {tier}"
+    if silent_failure:
+        verdict_title = f"INSUFFICIENT DATA — {rec_name} (Safety Case Invalid)"
+
+    result = {
         "recommended_corridor": recommended,
         "recommended_name": rec_name,
-        "verdict_title": f"Approved Route: {rec_name} — Part 108 {tier}",
+        "verdict_title": verdict_title,
         "part108_tier": tier,
         "primary_justification": reason,
         "rejected_corridors": rejected_corridors,
         "flagged_risks": flagged_risks,
         "landing_zones_summary": lz_summary,
-        "confidence_score": 0.95,
+        "confidence_score": base_confidence,
         "caveats": [
             "FAA UAS Facility Map data is for pre-flight planning and risk screening only, not real-time flight authorization.",
             "Ground population risk classified against US Census Bureau ACS5 tract population density.",
@@ -278,16 +310,47 @@ def _build_deterministic_fallback(computed_data: Dict[str, Any]) -> Dict[str, An
         ]
     }
 
+    if silent_failure:
+        result["data_failure_warning"] = (
+            "INSUFFICIENT DATA — Mireye infrastructure data fetch failed for all sample points on "
+            f"{rec_name}. Hazard score ({hazard_score:.2f}) and clearance values are internal sentinel "
+            "defaults, NOT real measurements. This safety case CANNOT be used as an authorization basis. "
+            "Re-run the route or verify API connectivity before using this output."
+        )
+        result["data_insufficient"] = True
+
+    return result
+
 
 def generate_safety_case(computed_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Phase 7: Generate structured reasoning verdict for 3-corridor comparison using Gemini.
     Fast execution (<1.5s) using compact payload and instant deterministic fallback on API contention.
+
+    IMPORTANT: After generating the safety case (via LLM or fallback), this function checks
+    whether the recommended corridor has data_insufficient=True. If so, it overrides:
+    - verdict_title -> "INSUFFICIENT DATA" prefix
+    - confidence_score -> hard-capped at 0.30
+    - data_failure_warning -> set to an explicit human-readable failure message
+    This prevents any path (LLM or deterministic) from emitting a false "approved" verdict.
     """
     comparison = computed_data.get("comparison", {})
     recommended = comparison.get("recommended_corridor", "corridor_a")
     rec_name = comparison.get("recommended_name", "Corridor A (Direct Path)")
     reason = comparison.get("comparison_reason", "Lowest hazard exposure score corridor selected.")
+
+    # Pre-check data sufficiency
+    rec_corr_info = computed_data.get(recommended, {})
+    rec_haz = rec_corr_info.get("hazard_exposure", {})
+    rec_data_insufficient = bool(rec_haz.get("data_insufficient", False))
+    rec_hazard_score = rec_haz.get("hazard_exposure_score", 0.0)
+    rec_landing_zones = rec_corr_info.get("landing_zones", [])
+    rec_obstacles = rec_corr_info.get("obstacles", [])
+    silent_failure = (
+        rec_data_insufficient or
+        (rec_hazard_score == 0.0 and len(rec_landing_zones) == 0 and len(rec_obstacles) == 0 and
+         rec_haz.get("min_transmission_distance_m") is None)
+    )
 
     # Build ultra-compact prompt payload (~300 tokens)
     compact_payload = _build_compact_prompt_payload(computed_data)
@@ -355,6 +418,8 @@ ANTI-HALLUCINATION & PROVENANCE CONSISTENCY RULES:
 }}
 """
 
+    result = None
+
     if GEMINI_API_KEY:
         try:
             from google import genai
@@ -362,12 +427,10 @@ ANTI-HALLUCINATION & PROVENANCE CONSISTENCY RULES:
 
             client = genai.Client(api_key=GEMINI_API_KEY)
 
-            # At most 2 attempts (0.5s backoff) to keep latency strictly under 2 seconds
             for attempt in range(2):
                 try:
                     t0 = time.time()
                     print(f"  [Reasoning Layer] Querying Gemini ({PRIMARY_MODEL})...", flush=True)
-                    # Configure low latency: disable thinking budget and limit output tokens
                     try:
                         gen_config = types.GenerateContentConfig(
                             response_mime_type="application/json",
@@ -396,7 +459,8 @@ ANTI-HALLUCINATION & PROVENANCE CONSISTENCY RULES:
                             raw_risks = parsed.get("flagged_risks", [])
                             parsed["flagged_risks"] = _enforce_grounded_citations(raw_risks, computed_data)
                             print(f"  [Reasoning Layer] ✓ Successfully generated safety case in {t1 - t0:.2f}s.", flush=True)
-                            return parsed
+                            result = parsed
+                            break
 
                 except Exception as exc:
                     exc_str = str(exc).lower()
@@ -412,6 +476,23 @@ ANTI-HALLUCINATION & PROVENANCE CONSISTENCY RULES:
         except Exception as e:
             print(f"  [Reasoning Layer Notice] Client exception: {e}", flush=True)
 
-    # Sub-millisecond deterministic fallback
-    print("  [Reasoning Layer] Instantly returned deterministic structured safety case fallback.", flush=True)
-    return _build_deterministic_fallback(computed_data)
+    if result is None:
+        print("  [Reasoning Layer] Instantly returned deterministic structured safety case fallback.", flush=True)
+        result = _build_deterministic_fallback(computed_data)
+
+    # POST-PROCESSING: Override safety case when data is insufficient
+    if silent_failure and not result.get("data_insufficient"):
+        result["data_failure_warning"] = (
+            f"INSUFFICIENT DATA — Mireye infrastructure data fetch failed for all sample points on "
+            f"{rec_name}. Hazard score ({rec_hazard_score:.2f}) and clearance values shown in this "
+            "report are internal sentinel defaults, NOT real measurements. "
+            "This safety case CANNOT be used as an authorization basis. "
+            "Re-run the route or verify Mireye API connectivity before use."
+        )
+        result["data_insufficient"] = True
+        result["confidence_score"] = min(result.get("confidence_score", 0.95), 0.30)
+        orig_title = result.get("verdict_title", "")
+        if not orig_title.startswith("INSUFFICIENT"):
+            result["verdict_title"] = f"INSUFFICIENT DATA — {rec_name} (Safety Case Invalid)"
+
+    return result

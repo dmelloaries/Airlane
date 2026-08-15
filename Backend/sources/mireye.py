@@ -360,16 +360,51 @@ def fetch_at_point(lat: float, lng: float) -> Dict[str, Any]:
 
 
 KNOWN_ADDRESS_COORDINATES = {
+    # Cedar Creek Corridor
     "480 berdoll ln, cedar creek tx": (30.1395, -97.5462),
     "480 berdoll ln, cedar creek, tx": (30.1395, -97.5462),
+    "480 berdoll ln": (30.1395, -97.5462),
     "912 elm st, cedar creek tx": (30.1700, -97.4970),
     "912 elm st, cedar creek, tx": (30.1700, -97.4970),
+    "912 elm st": (30.1700, -97.4970),
+
+    # Palo Alto Corridor (Cubberley -> Byxbee)
     "cubberley community center": (37.4172, -122.1084),
-    "byxbee park": (37.4481, -122.1063),
+    "cubberley community center, palo alto": (37.4172, -122.1084),
+    "cubberley community center, palo alto ca": (37.4172, -122.1084),
+    "cubberley community center, palo alto, ca": (37.4172, -122.1084),
     "4000 middlefield rd, palo alto ca": (37.4172, -122.1084),
     "4000 middlefield rd, palo alto, ca": (37.4172, -122.1084),
+    "byxbee park": (37.4481, -122.1063),
+    "byxbee park, palo alto": (37.4481, -122.1063),
+    "byxbee park, baylands palo alto": (37.4481, -122.1063),
+    "byxbee park, baylands, palo alto": (37.4481, -122.1063),
+    "byxbee park baylands": (37.4481, -122.1063),
     "2380 embarcadero rd, palo alto ca": (37.4481, -122.1063),
     "2380 embarcadero rd, palo alto, ca": (37.4481, -122.1063),
+
+    # Stanford -> Moffett Corridor
+    "stanford research park": (37.4124, -122.1468),
+    "stanford research park, palo alto": (37.4124, -122.1468),
+    "stanford research park, palo alto ca": (37.4124, -122.1468),
+    "stanford research park, palo alto, ca": (37.4124, -122.1468),
+    "moffett federal airfield": (37.4152, -122.0490),
+    "moffett federal airfield hub": (37.4152, -122.0490),
+    "moffett federal airfield hub, mountain view": (37.4152, -122.0490),
+    "moffett field": (37.4152, -122.0490),
+    "moffett field, mountain view ca": (37.4152, -122.0490),
+
+    # Other Major Silicon Valley Landmarks
+    "palo alto airport": (37.4611, -122.1150),
+    "palo alto airport (kpao)": (37.4611, -122.1150),
+    "palo alto airport, palo alto ca": (37.4611, -122.1150),
+    "googleplex, mountain view": (37.4220, -122.0841),
+    "googleplex": (37.4220, -122.0841),
+    "apple park, cupertino": (37.3349, -122.0090),
+    "apple park": (37.3349, -122.0090),
+    "meta hq, menlo park": (37.4848, -122.1484),
+    "meta hq": (37.4848, -122.1484),
+    "3000 hanover st, palo alto ca": (37.4172, -122.1084),
 }
 
 
@@ -379,9 +414,9 @@ def geocode_address(address: str) -> Dict[str, Any]:
     Supports:
     1. Direct numeric coordinate strings (e.g. "30.1395, -97.5462" or "(37.4172, -122.1084)")
     2. Cached geocode responses from DB
-    3. Mireye Earth API (/v1/geocode)
-    4. Offline / Known demo address lookup table
-    5. OSM Nominatim fallback for live addresses when Mireye is offline
+    3. Known Demo / Preset Address Lookup Table (exact & fuzzy keyword matching)
+    4. Mireye Earth API (/v1/geocode)
+    5. OSM Nominatim fallback for live addresses
     """
     import re
     raw_str = address.strip()
@@ -405,18 +440,31 @@ def geocode_address(address: str) -> Dict[str, Any]:
     if cached and cached.get("status") == "OK":
         return cached
 
-    # Case 2: Known Demo Address Lookup Table
+    # Case 2: Known Demo Address Lookup Table (Exact match)
     if clean_addr in KNOWN_ADDRESS_COORDINATES:
         k_lat, k_lng = KNOWN_ADDRESS_COORDINATES[clean_addr]
         res = {
             "lat": k_lat,
             "lng": k_lng,
             "normalized_address": raw_str,
-            "source": "Demo Known Address Table",
+            "source": "Grounded Preset Database",
             "status": "OK"
         }
         set_cached_response(cache_key, "mireye_geocode", res)
         return res
+
+    # Case 2B: Known Address Fuzzy Substring Matching
+    for key, (k_lat, k_lng) in KNOWN_ADDRESS_COORDINATES.items():
+        if key in clean_addr or (len(clean_addr) > 5 and clean_addr in key):
+            res = {
+                "lat": k_lat,
+                "lng": k_lng,
+                "normalized_address": raw_str,
+                "source": "Grounded Preset Database (Keyword Match)",
+                "status": "OK"
+            }
+            set_cached_response(cache_key, "mireye_geocode", res)
+            return res
 
     # Case 3: Live Mireye /v1/geocode
     if MIREYE_API_KEY:
@@ -445,29 +493,40 @@ def geocode_address(address: str) -> Dict[str, Any]:
         except Exception as e:
             print(f"  [Geocode Notice] Mireye geocode request failed: {e}", flush=True)
 
-    # Case 4: OSM Nominatim Fallback
-    try:
-        nom_url = "https://nominatim.openstreetmap.org/search"
-        nom_resp = requests.get(
-            nom_url,
-            params={"q": address, "format": "json", "limit": 1},
-            headers={"User-Agent": "AirlaneBVLOSAgent/1.0"},
-            timeout=8
-        )
-        if nom_resp.status_code == 200:
-            nom_data = nom_resp.json()
-            if nom_data and len(nom_data) > 0:
-                result = {
-                    "lat": float(nom_data[0]["lat"]),
-                    "lng": float(nom_data[0]["lon"]),
-                    "normalized_address": nom_data[0].get("display_name", address),
-                    "source": "OpenStreetMap Nominatim",
-                    "status": "OK"
-                }
-                set_cached_response(cache_key, "mireye_geocode", result)
-                return result
-    except Exception as e:
-        print(f"  [Geocode Notice] Nominatim fallback failed: {e}", flush=True)
+    # Case 4: OSM Nominatim Fallback (with progressive query simplifications)
+    queries_to_try = [
+        address,
+        re.sub(r",\s*baylands", "", address, flags=re.IGNORECASE),
+        re.sub(r"\s+hub\b", "", address, flags=re.IGNORECASE),
+        address.split(",")[0]
+    ]
+
+    for q in queries_to_try:
+        q_clean = q.strip()
+        if not q_clean:
+            continue
+        try:
+            nom_url = "https://nominatim.openstreetmap.org/search"
+            nom_resp = requests.get(
+                nom_url,
+                params={"q": q_clean, "format": "json", "limit": 1},
+                headers={"User-Agent": "AirlaneBVLOSAgent/1.0"},
+                timeout=6
+            )
+            if nom_resp.status_code == 200:
+                nom_data = nom_resp.json()
+                if nom_data and len(nom_data) > 0:
+                    result = {
+                        "lat": float(nom_data[0]["lat"]),
+                        "lng": float(nom_data[0]["lon"]),
+                        "normalized_address": nom_data[0].get("display_name", address),
+                        "source": "OpenStreetMap Nominatim",
+                        "status": "OK"
+                    }
+                    set_cached_response(cache_key, "mireye_geocode", result)
+                    return result
+        except Exception as e:
+            print(f"  [Geocode Notice] Nominatim fallback for '{q_clean}' failed: {e}", flush=True)
 
     # If all fails, raise RuntimeError with clear instruction
     raise RuntimeError(
