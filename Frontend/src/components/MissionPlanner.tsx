@@ -110,7 +110,7 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
         </div>
 
         {/* Inline Engineering Specs */}
-        <div className="hidden lg:flex items-center gap-4 text-xs font-mono text-slate-600 bg-white/85 backdrop-blur-md border border-slate-200/90 px-4 py-2.5 rounded-md shadow-[0_2px_8px_-2px_rgba(15,23,42,0.05)]">
+        <div className="hidden lg:flex items-center gap-4 text-xs font-mono text-slate-600 bg-white border border-slate-200/90 px-4 py-2.5 rounded-md shadow-xs">
           <div>
             <span className="text-[10px] text-slate-400 block uppercase">
               SOURCES
@@ -137,7 +137,7 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
       {/* Main Layout: Asymmetrical Console (5 cols) + Living Digital Twin World (7 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Left Flight Planning Console (5 cols) */}
-        <div className="lg:col-span-5 bg-white/90 backdrop-blur-md border border-slate-200/90 rounded-lg p-5 shadow-[0_4px_16px_-4px_rgba(15,23,42,0.06),0_1px_3px_rgba(15,23,42,0.04)] space-y-4 technical-corner-tl">
+        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-lg p-5 shadow-[0_4px_20px_-4px_rgba(15,23,42,0.06),0_1px_3px_rgba(15,23,42,0.04)] space-y-4 technical-corner-tl">
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div>
               <h2 className="text-base font-bold text-slate-900 font-display">

@@ -4,6 +4,7 @@ import { MissionPlanner } from "./components/MissionPlanner";
 import { LiveAnalysisOverlay } from "./components/LiveAnalysisOverlay";
 import { VerdictDashboard } from "./components/VerdictDashboard";
 import { InteractiveHazardModal } from "./components/InteractiveHazardModal";
+import { GlobalAviationMapBackground } from "./components/GlobalAviationMapBackground";
 import type { SelectedObjectInfo } from "./components/MiniatureCityCanvas";
 import { checkHealth, streamAnalysis } from "./services/api";
 import type {
@@ -627,18 +628,23 @@ export default function App() {
 
   return (
     <div className="relative min-h-screen bg-[#ebedf2] text-slate-900 flex flex-col font-sans selection:bg-sky-100 selection:text-sky-900 bg-aviation-grid overflow-x-hidden">
-      {/* RICH MULTI-LAYERED TECHNICAL AVIATION & TOPOGRAPHIC BACKGROUND */}
+      {/* RICH MULTI-LAYERED TECHNICAL AVIATION & GLOBAL AIR ROUTES MAP BACKGROUND */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
+        {/* Global Vector Air Routes & Continents Map Layer */}
+        <GlobalAviationMapBackground />
+
+        {/* Soft Center Workspace Focus Light (Isolates foreground UI and maximizes contrast) */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_30%,rgba(255,255,255,0.75)_0%,rgba(235,237,242,0.35)_60%,transparent_100%)]" />
+
         {/* Topographic Elevation Curves Texture (Spacious & subtle) */}
-        <div className="absolute inset-0 bg-topographic-contours opacity-35" />
+        <div className="absolute inset-0 bg-topographic-contours opacity-20" />
         
         {/* Tactile Micro-noise grain overlay */}
-        <div className="absolute inset-0 bg-tactile-noise opacity-50" />
+        <div className="absolute inset-0 bg-tactile-noise opacity-30" />
         
         {/* Ambient Aerospace Lighting Radial Depth Mesh */}
-        <div className="absolute inset-0 ambient-glow-sky" />
-        <div className="absolute inset-0 ambient-glow-indigo" />
-        <div className="absolute inset-0 ambient-glow-emerald" />
+        <div className="absolute inset-0 ambient-glow-sky opacity-80" />
+        <div className="absolute inset-0 ambient-glow-indigo opacity-70" />
 
         {/* Technical Margin Ruler Ticks (Left & Right) */}
         <div className="absolute top-0 bottom-0 left-2 w-px bg-slate-300/70 hidden 2xl:block">

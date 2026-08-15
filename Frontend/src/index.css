@@ -37,15 +37,15 @@
    Layered precision coordinate grids, elevation contours & stipple
    ------------------------------------------------------------- */
 
-/* Master Aviation Grid: Spacious, de-cluttered 80px blocks with crisp corner crosshairs */
+/* Master Aviation Grid: Clean, unobtrusive 80px blocks with subtle corner crosshairs */
 .bg-aviation-grid {
   background-color: #ebedf2;
   background-image:
-    /* Clean Cyan Crosshairs at 80px intersections */
-    radial-gradient(circle at 1px 1px, rgba(2, 132, 199, 0.85) 2px, transparent 2px),
-    /* Spacious 80px clean engineering grid lines */
-    linear-gradient(to right, rgba(148, 163, 184, 0.45) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(148, 163, 184, 0.45) 1px, transparent 1px);
+    /* Clean Subtle Cyan Crosshairs at 80px intersections */
+    radial-gradient(circle at 1px 1px, rgba(2, 132, 199, 0.40) 1.5px, transparent 1.5px),
+    /* Subtle 80px clean engineering grid lines */
+    linear-gradient(to right, rgba(148, 163, 184, 0.25) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.25) 1px, transparent 1px);
   background-size: 80px 80px, 80px 80px, 80px 80px;
   background-position: 0 0, 0 0, 0 0;
 }
