@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import type { AnalysisResult } from "../types/airlane";
+import type { AnalysisResult, TraceEvent } from "../types/airlane";
 import { MiniatureCityCanvas, type SelectedObjectInfo } from "./MiniatureCityCanvas";
 import { MapView } from "./MapView";
 import { LiveTracePanel } from "./LiveTracePanel";
@@ -8,12 +8,14 @@ interface VerdictDashboardProps {
   result: AnalysisResult;
   onReset: () => void;
   onSelectObject?: (info: SelectedObjectInfo | null) => void;
+  traceEvents?: TraceEvent[];
 }
 
 export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
   result,
   onReset,
   onSelectObject,
+  traceEvents = [],
 }) => {
   const [selectedCorridor, setSelectedCorridor] = useState<"corridor_a" | "corridor_b" | "corridor_c">(
     result.safety_case.recommended_corridor || "corridor_a"
@@ -569,7 +571,7 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
 
       {/* 6. COLLAPSIBLE OPERATIONAL EXECUTION TRACE */}
       <LiveTracePanel
-        events={[]}
+        events={traceEvents}
         isStreaming={false}
         defaultExpanded={false}
       />

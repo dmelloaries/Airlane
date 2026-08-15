@@ -411,29 +411,177 @@ export default function App() {
     }
   };
 
-  // High-fidelity progressive pipeline simulation
+  // High-fidelity progressive pipeline simulation with full telemetry & reasoning
   const executeSimulatedPipeline = (payload: MissionInputPayload) => {
-    const steps: Array<{ step: TraceEvent["step"]; msg: string }> = [
-      { step: "geocoding", msg: `Resolved "${payload.launch}" → 37.4172° N, 122.1084° W` },
-      { step: "corridor_generation", msg: "Generated 3 candidate flight corridors (Corridor Alpha, Corridor Beta East, Corridor Gamma West)" },
-      { step: "mireye_hazards", msg: "Mireye Earth API: 345kV transmission line detected. Direct path conflict mitigated." },
-      { step: "faa_airspace", msg: "FAA UASFM: Class D surface airspace ceiling active at 400ft AGL." },
-      { step: "population_density", msg: "Census Block Groups: Dominant Tier 1 ground risk (<250 people/sq mi)." },
-      { step: "noaa_wind", msg: "NOAA METAR: Wind 8 kts NW, gusts 12 kts (Safe for Small UAV envelope)." },
-      { step: "compute_engine", msg: "Scoring completed. Emergency landing zone LZ-01 identified with 18.7m clearance." },
-      { step: "reasoning_layer", msg: "Safety Case compiled: Corridor Alpha recommended (Part 108 Tier 1, 92% Confidence)." },
+    const simSteps: Array<Omit<TraceEvent, "timestamp">> = [
+      {
+        step: "geocoding",
+        message: `✓ Resolved endpoints: "${payload.launch}" → 37.4172° N, 122.1084° W (2.99 mi)`,
+        status: "complete",
+        category: "sensor",
+        level: "success",
+        source_name: "Mireye Geocoding API",
+        agent_thought: `Resolved launch and destination addresses into normalized WGS84 GPS coordinate pairs with high confidence.`,
+        elapsed_ms: 120,
+        metrics: {
+          direct_distance_miles: 2.99,
+          launch_lat: 37.4172,
+          launch_lng: -122.1084,
+          dest_lat: 37.4481,
+          dest_lng: -122.1063,
+        },
+      },
+      {
+        step: "corridor_generation",
+        message: "✓ Generated 3 candidate corridors: Corridor Alpha (Direct 2.99mi), Corridor Beta (+600m Detour), Corridor Gamma (-600m Detour)",
+        status: "complete",
+        category: "geometry",
+        level: "success",
+        source_name: "Corridor Geometry Engine",
+        agent_thought: "Synthesized 3 diverse lateral flight paths using Haversine geodesic interpolation and perpendicular waypoint bending.",
+        elapsed_ms: 310,
+        corridor_id: "corridor_a",
+        metrics: {
+          sample_spacing_m: payload.sample_spacing_m || 400,
+          detour_offset_m: payload.offset_distance_m || 600,
+          total_corridors: 3,
+        },
+      },
+      {
+        step: "data_ingestion",
+        message: "✓ Multi-Source Ingestion: Ingested 345kV infrastructure, FAA UASFM grids, Census tracts, and NOAA METAR station feeds in parallel",
+        status: "complete",
+        category: "sensor",
+        level: "info",
+        source_name: "Multi-Source Sensor Hub",
+        agent_thought: "Dispatched parallel async queries across Mireye Earth grid, FAA UAS Facility Maps, US Census Bureau demographics, and NOAA METAR.",
+        elapsed_ms: 620,
+      },
+      {
+        step: "mireye_hazards",
+        message: "✓ Mireye Earth API: 345kV transmission line detected. Corridor Alpha enforces 68.3m lateral buffer (>60m requirement)",
+        status: "complete",
+        category: "sensor",
+        level: "warning",
+        source_name: "Mireye Earth API",
+        agent_thought: "Identified overhead 345kV transmission tower #3A near mile 0.88. Corridor Alpha detour maintains 68.3m lateral clearance, avoiding electro-magnetic lockout.",
+        elapsed_ms: 840,
+        obstacle_count: 1,
+        corridor_id: "corridor_a",
+        metrics: {
+          voltage_kv: 345,
+          min_clearance_m: 68.3,
+          required_clearance_m: 60.0,
+          status: "CLEARANCE MAINTAINED",
+        },
+      },
+      {
+        step: "faa_airspace",
+        message: "✓ FAA UASFM: Class D surface airspace verified. Authorized flight ceiling active at 400ft AGL (Cruise at 300ft AGL)",
+        status: "complete",
+        category: "sensor",
+        level: "success",
+        source_name: "FAA UASFM",
+        agent_thought: "Queried FAA UAS Facility Maps. Authorized ceiling is 400ft AGL under Class D surface airspace rules with 100ft vertical margin.",
+        elapsed_ms: 1050,
+        metrics: {
+          authorized_ceiling_ft: 400,
+          airspace_class: "Class D",
+          cruise_altitude_ft: payload.cruise_altitude_ft || 300,
+          vertical_margin_ft: 100,
+        },
+      },
+      {
+        step: "population_density",
+        message: "✓ U.S. Census Bureau: Corridor Alpha evaluated at Tier 1 ground risk (<250 people/sq mi). Corridor Beta flagged as Tier 2",
+        status: "complete",
+        category: "sensor",
+        level: "success",
+        source_name: "U.S. Census Bureau",
+        agent_thought: "Audited 2020 Census block group population densities along all candidate corridors. Corridor Alpha achieves lowest cumulative ground exposure.",
+        elapsed_ms: 1280,
+        tiers: {
+          corridor_a: "Tier 1",
+          corridor_b: "Tier 2",
+          corridor_c: "Tier 3",
+        },
+        metrics: {
+          corridor_a_tier: "Tier 1",
+          corridor_b_tier: "Tier 2",
+          corridor_c_tier: "Tier 3",
+          max_density_sq_mi: 180,
+        },
+      },
+      {
+        step: "noaa_wind",
+        message: "✓ NOAA METAR: Surface wind 8 kts NW, gusts 12 kts from station KPAO (Within small UAV operational safety envelope)",
+        status: "complete",
+        category: "sensor",
+        level: "success",
+        source_name: "NOAA METAR",
+        agent_thought: "Audited local surface observations from Palo Alto Airport (KPAO). Wind 8kt with gusts to 12kt remains well within the 20kt Small UAV threshold.",
+        elapsed_ms: 1460,
+        is_safe: true,
+        metrics: {
+          station_id: "KPAO",
+          wind_speed_kt: 8,
+          wind_gust_kt: 12,
+          safe_envelope: true,
+        },
+      },
+      {
+        step: "compute_engine",
+        message: "✓ Compute Engine: Deterministic ranking complete — Corridor Alpha ranked #1. Emergency Landing Zone Byxbee Meadow verified (18.7m clearance)",
+        status: "complete",
+        category: "compute",
+        level: "success",
+        source_name: "Deterministic Scoring Engine",
+        agent_thought: "Evaluated multi-dimensional objective functions across distance, obstacle clearance, population exposure, and forced landing access. Corridor Alpha recommended.",
+        elapsed_ms: 1680,
+        recommended_corridor: "corridor_a",
+        metrics: {
+          recommended: "Corridor Alpha",
+          landing_zones_count: 2,
+          hazard_score: 0.0,
+        },
+      },
+      {
+        step: "reasoning_layer",
+        message: "✓ Safety Reasoning: Part 108 Safety Case compiled with waiver justifications, risk mitigations, and emergency procedures",
+        status: "complete",
+        category: "agent",
+        level: "success",
+        source_name: "Safety Reasoning Layer",
+        agent_thought: "Synthesized formal FAA Part 108 regulatory safety justification with specific lateral obstacle detours and ground risk tier boundaries.",
+        elapsed_ms: 1890,
+      },
+      {
+        step: "verification",
+        message: "✓ Provenance Verifier: 4/4 citations validated against live API telemetry (Confidence Rating: 92% HIGH)",
+        status: "complete",
+        category: "agent",
+        level: "success",
+        source_name: "Provenance & Confidence Verifier",
+        agent_thought: "Multi-source provenance audit complete. All four sensor telemetry citations verified with HIGH confidence.",
+        elapsed_ms: 2040,
+        confidence_score: 0.92,
+        metrics: {
+          confidence_score: 0.92,
+          citations_verified: 4,
+          confidence_tier: "HIGH",
+          total_latency_seconds: 2.04,
+        },
+      },
     ];
 
     let stepIdx = 0;
     const interval = setInterval(() => {
-      if (stepIdx < steps.length) {
-        const s = steps[stepIdx];
+      if (stepIdx < simSteps.length) {
+        const s = simSteps[stepIdx];
         setTraceEvents((prev) => [
           ...prev,
           {
-            step: s.step,
-            message: s.msg,
-            status: "complete",
+            ...s,
             timestamp: new Date().toLocaleTimeString(),
           },
         ]);
@@ -445,9 +593,9 @@ export default function App() {
           setAnalysisResult(result);
           setIsStreaming(false);
           setActiveView("results");
-        }, 500);
+        }, 600);
       }
-    }, 600);
+    }, 500);
 
     setCancelStream(() => () => clearInterval(interval));
   };
@@ -504,7 +652,7 @@ export default function App() {
           />
         )}
 
-        {/* SCREEN 2: LIVE AI ANALYSIS OVERLAY WITH DYNAMIC DIGITAL TWIN */}
+        {/* SCREEN 2: LIVE AI ANALYSIS OVERLAY WITH DYNAMIC DIGITAL TWIN & AGENT TERMINAL */}
         {activeView === "executing" && (
           <LiveAnalysisOverlay
             events={traceEvents}
@@ -520,6 +668,7 @@ export default function App() {
             result={analysisResult}
             onReset={handleReset}
             onSelectObject={setInspectedObject}
+            traceEvents={traceEvents}
           />
         )}
       </main>

@@ -222,14 +222,22 @@ export interface TraceEvent {
   message: string;
   status: "in_progress" | "complete" | "failed";
   timestamp: string;
+  category?: "agent" | "sensor" | "geometry" | "compute" | "system";
+  level?: "info" | "success" | "warning" | "error";
+  source_name?: string;
+  agent_thought?: string;
+  elapsed_ms?: number;
   corridor_id?: string;
   obstacle_count?: number;
   tiers?: Record<string, string>;
   is_safe?: boolean;
   confidence_score?: number;
+  recommended_corridor?: string;
   launch?: GeocodedLocation;
   destination?: GeocodedLocation;
   distance_m?: number;
+  metrics?: Record<string, string | number | boolean | null>;
+  raw_payload?: Record<string, any>;
 }
 
 export interface MissionInputPayload {

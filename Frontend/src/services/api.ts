@@ -64,7 +64,8 @@ export function streamAnalysis(
         const data = JSON.parse(e.data);
         callbacks.onTrace({
           ...data,
-          timestamp: new Date().toLocaleTimeString(),
+          timestamp: data.timestamp || new Date().toLocaleTimeString(),
+          raw_payload: data,
         });
       } catch (err) {
         console.error("Failed to parse trace event", err);
