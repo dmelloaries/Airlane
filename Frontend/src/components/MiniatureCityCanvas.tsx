@@ -1093,7 +1093,7 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
 
   return (
     <div
-      className={`relative w-full ${
+      className={`isolate relative z-0 w-full ${
         isHeroBackground ? "h-[460px] lg:h-[540px]" : "h-[480px] lg:h-[580px]"
       } rounded-lg overflow-hidden border border-slate-200 shadow-xs bg-[#fbfbfa] select-none`}
     >

@@ -10,7 +10,7 @@ export const InteractiveHazardModal: React.FC<InteractiveHazardModalProps> = ({ 
   if (!info) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-xs animate-in fade-in duration-150 font-sans">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-150 font-sans">
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden animate-in zoom-in-95 duration-150">
         {/* Header with Type Tag */}
         <div className="bg-slate-50 border-b border-slate-200 px-4 py-3 flex items-center justify-between font-mono">

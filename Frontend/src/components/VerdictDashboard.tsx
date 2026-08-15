@@ -3,6 +3,9 @@ import type { AnalysisResult, TraceEvent } from "../types/airlane";
 import { MiniatureCityCanvas, type SelectedObjectInfo } from "./MiniatureCityCanvas";
 import { MapView } from "./MapView";
 import { LiveTracePanel } from "./LiveTracePanel";
+import { ExportModal } from "./ExportModal";
+import { generatePart108Pdf } from "../utils/pdfGenerator";
+import { downloadJsonFile, buildFormattedPart108Json } from "../utils/exportUtils";
 
 interface VerdictDashboardProps {
   result: AnalysisResult;
@@ -155,8 +158,25 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
             <button
               onClick={() => setShowExportModal(true)}
               className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-md shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              title="Open Part 108 Export Center"
             >
               <span>EXPORT FILING</span>
+              <span>↓</span>
+            </button>
+            <button
+              onClick={() => generatePart108Pdf(result)}
+              className="px-3 py-2.5 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-md border border-slate-300 shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              title="Quick Download Official PDF Dossier"
+            >
+              <span className="text-sky-600 font-bold">PDF</span>
+              <span>↓</span>
+            </button>
+            <button
+              onClick={() => downloadJsonFile(buildFormattedPart108Json(result))}
+              className="px-3 py-2.5 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-md border border-slate-300 shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              title="Quick Download Machine-Readable JSON"
+            >
+              <span className="text-slate-800 font-bold">JSON</span>
               <span>↓</span>
             </button>
             <button
@@ -619,48 +639,12 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
         defaultExpanded={false}
       />
 
-      {/* Export Filing Modal */}
+      {/* Comprehensive FAA Part 108 Export Modal */}
       {showExportModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/30 backdrop-blur-xs">
-          <div className="w-full max-w-md bg-white rounded-lg border border-slate-200 shadow-xl p-5 space-y-3 font-sans">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-              <h4 className="text-base font-bold text-slate-900 font-display">
-                Export Part 108 Safety Case
-              </h4>
-              <button
-                onClick={() => setShowExportModal(false)}
-                className="text-slate-400 hover:text-slate-700 text-sm font-mono"
-              >
-                ✕
-              </button>
-            </div>
-            <p className="text-xs text-slate-600 leading-relaxed font-sans">
-              Download complete digital twin safety filing with GPS coordinate waypoints, clearance audits, and FAA compliance justifications.
-            </p>
-            <div className="space-y-2 pt-2 font-mono text-xs">
-              <button
-                onClick={() => {
-                  const blob = new Blob([JSON.stringify(result, null, 2)], { type: "application/json" });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = `Airlane_Part108_SafetyCase_${new Date().toISOString().slice(0, 10)}.json`;
-                  a.click();
-                  setShowExportModal(false);
-                }}
-                className="w-full py-2 px-3 bg-sky-600 hover:bg-sky-700 text-white font-bold rounded-md transition-colors text-center cursor-pointer"
-              >
-                DOWNLOAD SAFETY CASE JSON (FAA PART 108)
-              </button>
-              <button
-                onClick={() => setShowExportModal(false)}
-                className="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-md transition-colors cursor-pointer"
-              >
-                CANCEL
-              </button>
-            </div>
-          </div>
-        </div>
+        <ExportModal
+          result={result}
+          onClose={() => setShowExportModal(false)}
+        />
       )}
     </div>
   );

@@ -556,7 +556,7 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
   }, [result, showHazards, showAirspace, showLandingZones, showRejectedRoutes, isSimulating]);
 
   return (
-    <div className="relative w-full h-[480px] lg:h-[580px] rounded-lg overflow-hidden border border-slate-200 shadow-xs bg-white select-none">
+    <div className="isolate relative z-0 w-full h-[480px] lg:h-[580px] rounded-lg overflow-hidden border border-slate-200 shadow-xs bg-white select-none">
       {/* Top Floating Controls Bar */}
       <div className="absolute top-3 left-3 right-3 z-[500] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
         <div className="flex items-center gap-2 pointer-events-auto">
