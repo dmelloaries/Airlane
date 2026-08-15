@@ -12,7 +12,7 @@ export const Header: React.FC<HeaderProps> = ({
   activeView,
 }) => {
   return (
-    <header className="sticky top-0 z-40 bg-[#fbfbfa]/95 backdrop-blur-md border-b border-slate-200/90 px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between">
+    <header className="sticky top-0 z-40 bg-white/85 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between shadow-[0_1px_2px_rgba(15,23,42,0.03)]">
       {/* Brand & Logo */}
       <div className="flex items-center gap-3">
         <div

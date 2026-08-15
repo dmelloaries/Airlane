@@ -626,68 +626,121 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#fbfbfa] text-slate-900 flex flex-col font-sans selection:bg-sky-100 selection:text-sky-900 bg-aviation-grid">
-      <Header
-        serverStatus={serverStatus}
-        onReset={handleReset}
-        activeView={activeView}
-      />
+    <div className="relative min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans selection:bg-sky-100 selection:text-sky-900 bg-aviation-grid overflow-x-hidden">
+      {/* RICH MULTI-LAYERED TECHNICAL AVIATION & TOPOGRAPHIC BACKGROUND */}
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
+        {/* Topographic Elevation Curves Texture */}
+        <div className="absolute inset-0 bg-topographic-contours opacity-60" />
+        
+        {/* Tactile Micro-noise grain overlay */}
+        <div className="absolute inset-0 bg-tactile-noise opacity-70" />
+        
+        {/* Ambient Aerospace Lighting Radial Depth Mesh */}
+        <div className="absolute inset-0 ambient-glow-sky" />
+        <div className="absolute inset-0 ambient-glow-indigo" />
+        <div className="absolute inset-0 ambient-glow-emerald" />
 
-      <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
-        {errorMessage && (
-          <div className="mb-5 p-3.5 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between shadow-xs font-mono">
-            <div className="flex items-center gap-2">
-              <span>⚠️</span>
-              <span>{errorMessage}</span>
-            </div>
-            <button
-              onClick={() => setErrorMessage(null)}
-              className="text-[10px] font-bold text-rose-600 hover:text-rose-800 px-2 py-0.5"
-            >
-              DISMISS
-            </button>
+        {/* Technical Margin Ruler Ticks (Left & Right) */}
+        <div className="absolute top-0 bottom-0 left-2 w-px bg-slate-200/60 hidden 2xl:block">
+          <div className="h-full flex flex-col justify-between py-12 text-[8px] font-mono text-slate-400/50">
+            <span>+000</span>
+            <span>+200</span>
+            <span>+400</span>
+            <span>+600</span>
+            <span>+800</span>
+            <span>+1000</span>
           </div>
-        )}
+        </div>
 
-        {/* SCREEN 1: MISSION PLANNING & SILICON VALLEY HERO */}
-        {activeView === "input" && (
-          <MissionPlanner
-            onSubmit={handleStartMission}
-            isLoading={isStreaming}
-            onSelectObject={setInspectedObject}
-          />
-        )}
+        <div className="absolute top-0 bottom-0 right-2 w-px bg-slate-200/60 hidden 2xl:block">
+          <div className="h-full flex flex-col justify-between py-12 text-[8px] font-mono text-slate-400/50 text-right">
+            <span>SV-N</span>
+            <span>37.44°</span>
+            <span>37.43°</span>
+            <span>37.42°</span>
+            <span>37.41°</span>
+            <span>SV-S</span>
+          </div>
+        </div>
 
-        {/* SCREEN 2: LIVE AI ANALYSIS OVERLAY WITH DYNAMIC DIGITAL TWIN & AGENT TERMINAL */}
-        {activeView === "executing" && (
-          <LiveAnalysisOverlay
-            events={traceEvents}
-            isStreaming={isStreaming}
-            onCancel={handleCancel}
-            onSelectObject={setInspectedObject}
-          />
-        )}
+        {/* Subtle Technical Aerospace Coordinate Watermarks */}
+        <div className="absolute top-14 left-8 font-mono text-[9px] text-slate-400/40 select-none tracking-widest hidden xl:block">
+          + AIRLANE SECTOR: 37.4172° N · 122.1084° W · WGS84 ISO-CONTOURS +
+        </div>
+        <div className="absolute top-14 right-8 font-mono text-[9px] text-slate-400/40 select-none tracking-widest hidden xl:block">
+          + FAA PART 108 DIGITAL TWIN · DETERMINISTIC SAFETY ENGINE +
+        </div>
+        <div className="absolute bottom-12 left-8 font-mono text-[9px] text-slate-400/30 select-none tracking-widest hidden xl:block">
+          + MULTI-FEED SENSOR INGESTION: MIREYE 345KV · UASFM · CENSUS · METAR +
+        </div>
+        <div className="absolute bottom-12 right-8 font-mono text-[9px] text-slate-400/30 select-none tracking-widest hidden xl:block">
+          + BVLOS CORRIDOR SAMPLING: 400M STEP · 600M BUFFER +
+        </div>
+      </div>
 
-        {/* SCREEN 3: MISSION VERDICT & DIGITAL TWIN DASHBOARD */}
-        {activeView === "results" && analysisResult && (
-          <VerdictDashboard
-            result={analysisResult}
-            onReset={handleReset}
-            onSelectObject={setInspectedObject}
-            traceEvents={traceEvents}
-          />
-        )}
-      </main>
+      <div className="relative z-10 flex flex-col min-h-screen">
+        <Header
+          serverStatus={serverStatus}
+          onReset={handleReset}
+          activeView={activeView}
+        />
 
-      {/* Interactive Object / Hazard Inspector Modal */}
-      <InteractiveHazardModal
-        info={inspectedObject}
-        onClose={() => setInspectedObject(null)}
-      />
+        <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
+          {errorMessage && (
+            <div className="mb-5 p-3.5 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between shadow-xs font-mono">
+              <div className="flex items-center gap-2">
+                <span>⚠️</span>
+                <span>{errorMessage}</span>
+              </div>
+              <button
+                onClick={() => setErrorMessage(null)}
+                className="text-[10px] font-bold text-rose-600 hover:text-rose-800 px-2 py-0.5"
+              >
+                DISMISS
+              </button>
+            </div>
+          )}
 
-      <footer className="border-t border-slate-200 bg-white/80 py-4 px-4 text-center text-xs text-slate-500 font-mono">
-        Airlane BVLOS Autonomous Navigation Engine · Silicon Valley Miniature Digital Twin · FAA Part 108 Compliant
-      </footer>
+          {/* SCREEN 1: MISSION PLANNING & SILICON VALLEY HERO */}
+          {activeView === "input" && (
+            <MissionPlanner
+              onSubmit={handleStartMission}
+              isLoading={isStreaming}
+              onSelectObject={setInspectedObject}
+            />
+          )}
+
+          {/* SCREEN 2: LIVE AI ANALYSIS OVERLAY WITH DYNAMIC DIGITAL TWIN & AGENT TERMINAL */}
+          {activeView === "executing" && (
+            <LiveAnalysisOverlay
+              events={traceEvents}
+              isStreaming={isStreaming}
+              onCancel={handleCancel}
+              onSelectObject={setInspectedObject}
+            />
+          )}
+
+          {/* SCREEN 3: MISSION VERDICT & DIGITAL TWIN DASHBOARD */}
+          {activeView === "results" && analysisResult && (
+            <VerdictDashboard
+              result={analysisResult}
+              onReset={handleReset}
+              onSelectObject={setInspectedObject}
+              traceEvents={traceEvents}
+            />
+          )}
+        </main>
+
+        {/* Interactive Object / Hazard Inspector Modal */}
+        <InteractiveHazardModal
+          info={inspectedObject}
+          onClose={() => setInspectedObject(null)}
+        />
+
+        <footer className="border-t border-slate-200/80 bg-white/75 backdrop-blur-md py-4 px-4 text-center text-xs text-slate-500 font-mono">
+          Airlane BVLOS Autonomous Navigation Engine · Silicon Valley Miniature Digital Twin · FAA Part 108 Compliant
+        </footer>
+      </div>
     </div>
   );
 }

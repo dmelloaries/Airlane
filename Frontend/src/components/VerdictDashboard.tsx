@@ -73,7 +73,7 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
     <div className="space-y-6 animate-in fade-in duration-300 pb-10 font-sans">
       {/* SUCCESS CELEBRATION TOAST CARD (Aviation Engineering Theme) */}
       {showSuccessToast && (
-        <div className="p-3.5 rounded-xl bg-white border border-emerald-200/90 shadow-xs flex flex-wrap items-center justify-between gap-3 animate-in fade-in duration-300">
+        <div className="p-3.5 rounded-xl bg-white/90 backdrop-blur-md border border-emerald-200/90 shadow-[0_4px_16px_-4px_rgba(16,185,129,0.08),0_1px_3px_rgba(15,23,42,0.04)] flex flex-wrap items-center justify-between gap-3 animate-in fade-in duration-300">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 text-sm font-bold shadow-xs">
               ✓

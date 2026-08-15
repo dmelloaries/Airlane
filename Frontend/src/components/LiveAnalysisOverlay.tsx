@@ -53,7 +53,7 @@ export const LiveAnalysisOverlay: React.FC<LiveAnalysisOverlayProps> = ({
   return (
     <div className="space-y-4 animate-in fade-in duration-200">
       {/* Top Operational Status Bar with Progress */}
-      <div className="rounded-xl bg-white border border-slate-200/90 shadow-sm p-4 space-y-3">
+      <div className="rounded-xl bg-white/90 backdrop-blur-md border border-slate-200/90 shadow-[0_4px_16px_-4px_rgba(15,23,42,0.06),0_1px_3px_rgba(15,23,42,0.04)] p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           {/* Left: Active Status & Stage */}
           <div className="flex items-center gap-3">
