@@ -9,85 +9,82 @@ interface LiveAnalysisOverlayProps {
   onSelectObject?: (info: SelectedObjectInfo | null) => void;
 }
 
-const STAGE_MAP: Record<string, { label: string; stageIndex: number; icon: string }> = {
-  geocoding: { label: "Resolving addresses & geocoding", stageIndex: 1, icon: "📍" },
-  corridor_generation: { label: "Generating 3 candidate corridors", stageIndex: 2, icon: "🛣️" },
-  mireye_hazards: { label: "Fetching Mireye infrastructure data (345kV lines)", stageIndex: 3, icon: "⚡" },
-  faa_airspace: { label: "Fetching FAA airspace ceilings (400ft UASFM)", stageIndex: 4, icon: "🛡️" },
-  population_density: { label: "Fetching Census population density (Part 108 Tiers)", stageIndex: 5, icon: "👥" },
-  noaa_wind: { label: "Fetching NOAA wind & weather conditions", stageIndex: 6, icon: "💨" },
-  compute_engine: { label: "Scoring and comparing candidate corridors", stageIndex: 7, icon: "⚙️" },
-  reasoning_layer: { label: "Generating Part 108 safety case reasoning", stageIndex: 8, icon: "🧠" },
-  verification: { label: "Verifying multi-source provenance & citations", stageIndex: 8, icon: "✅" },
-  complete: { label: "Analysis complete — Corridor Alpha recommended", stageIndex: 8, icon: "🎯" },
+const STAGE_MAP: Record<string, { label: string; stageIndex: number }> = {
+  geocoding: { label: "Resolving Launch & Destination Endpoints", stageIndex: 1 },
+  corridor_generation: { label: "Generating 3 Candidate Corridors", stageIndex: 2 },
+  data_ingestion: { label: "Parallel Data Ingestion Active", stageIndex: 3 },
+  mireye_hazards: { label: "Evaluating Mireye 345kV Infrastructure", stageIndex: 3 },
+  faa_airspace: { label: "Verifying FAA UASFM Airspace Ceilings", stageIndex: 4 },
+  population_density: { label: "Calculating Census Ground Risk Tiers", stageIndex: 5 },
+  noaa_wind: { label: "Auditing NOAA METAR Wind Vectors", stageIndex: 6 },
+  compute_engine: { label: "Deterministic Scoring & Clearance Ranking", stageIndex: 7 },
+  reasoning_layer: { label: "Synthesizing Part 108 Safety Case", stageIndex: 8 },
+  verification: { label: "Multi-Source Provenance Verification", stageIndex: 8 },
+  complete: { label: "Safety Case Verification Complete", stageIndex: 8 },
 };
+
+const PIPELINE_STEPS = [
+  { key: "geocoding", num: "01", name: "RESOLVING ENDPOINTS", source: "GEOCODING" },
+  { key: "corridor_generation", num: "02", name: "GENERATING CORRIDORS", source: "GEOMETRY" },
+  { key: "mireye_hazards", num: "03", name: "MIREYE INFRASTRUCTURE (345kV)", source: "MIREYE API" },
+  { key: "faa_airspace", num: "04", name: "FAA AIRSPACE CEILINGS (400ft)", source: "FAA UASFM" },
+  { key: "population_density", num: "05", name: "CENSUS POPULATION TIERS", source: "US CENSUS" },
+  { key: "noaa_wind", num: "06", name: "NOAA WIND & METAR VECTORS", source: "NOAA METAR" },
+  { key: "compute_engine", num: "07", name: "DETERMINISTIC SCORING", source: "COMPUTE ENGINE" },
+  { key: "reasoning_layer", num: "08", name: "PART 108 SAFETY CASE SYNTHESIS", source: "SAFETY REASONING" },
+];
 
 export const LiveAnalysisOverlay: React.FC<LiveAnalysisOverlayProps> = ({
   events,
-  isStreaming,
   onCancel,
   onSelectObject,
 }) => {
-  // Determine current active stage
   const lastEvent = events.length > 0 ? events[events.length - 1] : null;
   const currentStep = lastEvent?.step || "geocoding";
-  const stageInfo = STAGE_MAP[currentStep] || { label: "Analyzing flight envelope...", stageIndex: 1, icon: "⚡" };
+  const stageInfo = STAGE_MAP[currentStep] || { label: "Analyzing flight envelope...", stageIndex: 1 };
   const currentStageIndex = stageInfo.stageIndex;
 
-  const PIPELINE_STEPS = [
-    { key: "geocoding", name: "Resolve Launch & Destination Endpoints", icon: "📍" },
-    { key: "corridor_generation", name: "Generate 3 Candidate Corridors", icon: "🛣️" },
-    { key: "mireye_hazards", name: "Fetch Mireye Infrastructure (Powerlines & Obstacles)", icon: "⚡" },
-    { key: "faa_airspace", name: "Fetch FAA Airspace Ceilings (Class D / UASFM)", icon: "🛡️" },
-    { key: "population_density", name: "Fetch Census Population Density & Ground Tiers", icon: "👥" },
-    { key: "noaa_wind", name: "Fetch NOAA Wind Vectors & Surface Gusts", icon: "💨" },
-    { key: "compute_engine", name: "Score Risk Exposure & Emergency Landing Zones", icon: "⚙️" },
-    { key: "reasoning_layer", name: "Synthesize Part 108 Safety Case & Verdict", icon: "🧠" },
-  ];
-
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
-      {/* Top Banner */}
-      <div className="flex flex-wrap items-center justify-between gap-4 p-5 rounded-2xl bg-white border border-slate-200/90 shadow-lg shadow-slate-200/40">
-        <div className="flex items-center gap-3.5">
-          <div className="w-10 h-10 rounded-xl bg-sky-500 flex items-center justify-center text-white shadow-md shadow-sky-500/30">
-            <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+    <div className="space-y-5 animate-in fade-in duration-200">
+      {/* Top Operational Status Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-lg bg-white border border-slate-200 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-7 h-7 rounded-md bg-sky-600 flex items-center justify-center text-white text-xs font-mono font-bold">
+            <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight font-display">
-                Airlane is analyzing your flight
-              </h2>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-sky-100 text-sky-700 border border-sky-200">
-                LIVE PIPELINE
+              <span className="text-sm font-bold text-slate-900 font-display">
+                Autonomous Safety Pipeline Active
+              </span>
+              <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                STAGE 0{currentStageIndex} / 08
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              The digital twin environment updates in real time as data layers are fetched and evaluated
+            <p className="text-xs text-slate-500 font-mono">
+              {stageInfo.label}
             </p>
           </div>
         </div>
 
         <button
           onClick={onCancel}
-          className="px-4 py-2 text-xs font-semibold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition-colors cursor-pointer"
+          className="px-3 py-1 text-xs font-mono text-slate-500 hover:text-rose-600 bg-slate-50 hover:bg-rose-50 border border-slate-200 hover:border-rose-200 rounded-md transition-colors cursor-pointer"
         >
-          Cancel Mission Analysis
+          [ABORT PIPELINE]
         </button>
       </div>
 
-      {/* Main Grid: Live Digital Twin with Dynamic Layer Reveal + Live Trace Stream */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left: Active Miniature Canvas (7 cols) */}
-        <div className="lg:col-span-7 space-y-2">
-          <div className="flex items-center justify-between px-1">
-            <span className="text-xs font-bold text-slate-700 font-display flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
-              Dynamic Digital Twin Layer Activation
+      {/* Main Grid: Living 3D Twin (7 cols) + Engineering Execution Log (5 cols) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* Left: Active Miniature Canvas */}
+        <div className="lg:col-span-7 space-y-1.5">
+          <div className="flex items-center justify-between px-1 text-xs font-mono text-slate-500">
+            <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-sky-500 animate-pulse" />
+              DIGITAL TWIN LAYER REVEAL
             </span>
-            <span className="text-[11px] font-mono font-medium text-sky-600">
-              Stage {currentStageIndex} of 8
-            </span>
+            <span>REAL-TIME TELEMETRY</span>
           </div>
 
           <MiniatureCityCanvas
@@ -97,24 +94,15 @@ export const LiveAnalysisOverlay: React.FC<LiveAnalysisOverlayProps> = ({
           />
         </div>
 
-        {/* Right: Live Trace Event Log (5 cols) */}
-        <div className="lg:col-span-5 bg-white border border-slate-200/90 rounded-2xl p-6 shadow-xl shadow-slate-200/50 space-y-5">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 font-display">
-                Real-Time Execution Steps
-              </h3>
-              <p className="text-[11px] text-slate-500">
-                Authoritative backend pipeline trace
-              </p>
-            </div>
-            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-              SSE Stream
-            </span>
+        {/* Right: Operational Engineering Log */}
+        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-lg p-4 shadow-xs space-y-3">
+          <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 font-mono text-xs">
+            <span className="font-bold text-slate-900">ENGINEERING TRACE LOG</span>
+            <span className="text-slate-400 text-[10px]">SSE / STREAM</span>
           </div>
 
           {/* Stepper Checklist */}
-          <div className="space-y-2.5">
+          <div className="space-y-1 font-mono text-xs">
             {PIPELINE_STEPS.map((step, idx) => {
               const stepIndex = idx + 1;
               const isCompleted = currentStageIndex > stepIndex;
@@ -124,30 +112,31 @@ export const LiveAnalysisOverlay: React.FC<LiveAnalysisOverlayProps> = ({
               return (
                 <div
                   key={step.key}
-                  className={`p-2.5 rounded-xl border flex items-center justify-between text-xs transition-all ${
+                  className={`px-2.5 py-1.5 rounded border flex items-center justify-between transition-colors ${
                     isCompleted
-                      ? "bg-emerald-50/60 border-emerald-200/80 text-emerald-900 font-medium"
+                      ? "bg-slate-50 border-slate-200 text-slate-800"
                       : isCurrent
-                      ? "bg-sky-50 border-sky-300 text-sky-900 font-semibold shadow-xs"
-                      : "bg-slate-50/50 border-slate-200/50 text-slate-400"
+                      ? "bg-sky-50 border-sky-300 text-sky-900 font-bold"
+                      : "bg-white border-transparent text-slate-400"
                   }`}
                 >
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-sm">{step.icon}</span>
-                    <span>{step.name}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-slate-400 font-semibold">{step.num}</span>
+                    <span className="text-[11px] truncate">{step.name}</span>
                   </div>
 
-                  <div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[9px] text-slate-400 uppercase hidden sm:inline">{step.source}</span>
                     {isCompleted && (
-                      <span className="w-5 h-5 rounded-full bg-emerald-500 text-white flex items-center justify-center text-[10px] font-bold">
-                        ✓
+                      <span className="text-emerald-600 font-bold text-[10px]">
+                        [OK]
                       </span>
                     )}
                     {isCurrent && (
-                      <span className="w-4 h-4 border-2 border-sky-500/30 border-t-sky-600 rounded-full animate-spin" />
+                      <span className="w-3 h-3 border-2 border-sky-500/30 border-t-sky-600 rounded-full animate-spin" />
                     )}
                     {isPending && (
-                      <span className="text-[10px] font-mono text-slate-400">⏳</span>
+                      <span className="text-[10px] text-slate-300">···</span>
                     )}
                   </div>
                 </div>
@@ -155,17 +144,17 @@ export const LiveAnalysisOverlay: React.FC<LiveAnalysisOverlayProps> = ({
             })}
           </div>
 
-          {/* Raw Message Log Drawer */}
+          {/* Live Message Output */}
           {events.length > 0 && (
-            <div className="space-y-1.5 pt-2 border-t border-slate-100">
-              <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                Latest Agent Output
-              </label>
-              <div className="p-3 rounded-xl bg-slate-900 text-sky-400 font-mono text-[11px] max-h-32 overflow-y-auto space-y-1 leading-relaxed">
-                {events.slice(-4).map((e, idx) => (
-                  <div key={idx} className="flex items-start gap-2">
-                    <span className="text-slate-500 shrink-0">[{e.timestamp || "12:00:00"}]</span>
-                    <span className="text-slate-200">{e.message}</span>
+            <div className="pt-2 border-t border-slate-100 space-y-1">
+              <span className="text-[10px] font-mono font-bold text-slate-400 uppercase block">
+                Live Trace Output
+              </span>
+              <div className="p-2.5 rounded bg-slate-900 text-slate-200 font-mono text-[11px] max-h-28 overflow-y-auto space-y-1 leading-normal">
+                {events.slice(-5).map((e, idx) => (
+                  <div key={idx} className="flex items-start gap-1.5">
+                    <span className="text-slate-500 shrink-0">[{e.timestamp || "00:00"}]</span>
+                    <span className="text-sky-300">{e.message}</span>
                   </div>
                 ))}
               </div>

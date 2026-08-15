@@ -25,7 +25,7 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
-    // Initialize Leaflet map with Light Silicon Valley Carto Voyager tiles
+    // Initialize Leaflet map with crisp Carto Voyager tiles
     if (!mapInstanceRef.current) {
       const map = L.map(mapContainerRef.current, {
         zoomControl: false,
@@ -34,7 +34,6 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
 
       L.control.zoom({ position: "topright" }).addTo(map);
 
-      // Light Carto Voyager tiles for crisp daylight startup map aesthetic
       L.tileLayer(
         "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
         {
@@ -51,72 +50,72 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
     const layersGroup = layersGroupRef.current;
     if (!map || !layersGroup) return;
 
-    // Clear previous vector layers and markers
     layersGroup.clearLayers();
 
     const allLatLngs: L.LatLngExpression[] = [];
 
-    // 1. Draw Launch and Destination Markers
+    // 1. Launch and Destination Markers
     const launchLatLng: [number, number] = [launch.lat, launch.lng];
     const destLatLng: [number, number] = [destination.lat, destination.lng];
     allLatLngs.push(launchLatLng, destLatLng);
 
-    // Custom Launch Pin
+    // Launch Pin
     const launchIcon = L.divIcon({
       className: "custom-map-pin",
       html: `
         <div style="
-          width: 32px;
-          height: 32px;
+          width: 28px;
+          height: 28px;
           background: #0284c7;
-          border: 2.5px solid #ffffff;
-          border-radius: 50%;
+          border: 2px solid #ffffff;
+          border-radius: 6px;
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 4px 12px rgba(2, 132, 199, 0.45);
+          box-shadow: 0 2px 8px rgba(2, 132, 199, 0.4);
           color: #ffffff;
           font-weight: bold;
-          font-size: 14px;
+          font-size: 11px;
+          font-family: monospace;
         ">
-          🛫
+          A
         </div>
       `,
-      iconSize: [32, 32],
-      iconAnchor: [16, 16],
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
     });
 
     const destIcon = L.divIcon({
       className: "custom-map-pin",
       html: `
         <div style="
-          width: 32px;
-          height: 32px;
+          width: 28px;
+          height: 28px;
           background: #10b981;
-          border: 2.5px solid #ffffff;
-          border-radius: 50%;
+          border: 2px solid #ffffff;
+          border-radius: 6px;
           display: flex;
           align-items: center;
           justify-content: center;
-          box-shadow: 0 4px 12px rgba(16, 185, 129, 0.45);
+          box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
           color: #ffffff;
           font-weight: bold;
-          font-size: 14px;
+          font-size: 11px;
+          font-family: monospace;
         ">
-          🛬
+          B
         </div>
       `,
-      iconSize: [32, 32],
-      iconAnchor: [16, 16],
+      iconSize: [28, 28],
+      iconAnchor: [14, 14],
     });
 
     const launchMarker = L.marker(launchLatLng, { icon: launchIcon })
       .bindPopup(`
         <div style="font-family: sans-serif; font-size: 12px; line-height: 1.4; color: #0f172a; padding: 2px;">
-          <strong style="color: #0284c7; font-size: 13px;">🚀 Real Launch Location</strong><br/>
-          <strong>Input:</strong> ${launch.input}<br/>
-          <strong>Normalized:</strong> ${launch.normalized_address}<br/>
-          <strong>GPS:</strong> ${launch.lat.toFixed(5)}° N, ${launch.lng.toFixed(5)}° W
+          <div style="font-family: monospace; font-size: 10px; font-weight: bold; color: #0284c7; text-transform: uppercase;">ORIGIN TAKEOFF PAD</div>
+          <strong>${launch.normalized_address || launch.input}</strong><br/>
+          <span style="font-family: monospace; font-size: 11px; color: #64748b;">${launch.lat.toFixed(5)}° N, ${launch.lng.toFixed(5)}° W</span>
         </div>
       `);
     layersGroup.addLayer(launchMarker);
@@ -124,15 +123,14 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
     const destMarker = L.marker(destLatLng, { icon: destIcon })
       .bindPopup(`
         <div style="font-family: sans-serif; font-size: 12px; line-height: 1.4; color: #0f172a; padding: 2px;">
-          <strong style="color: #10b981; font-size: 13px;">🎯 Real Destination Location</strong><br/>
-          <strong>Input:</strong> ${destination.input}<br/>
-          <strong>Normalized:</strong> ${destination.normalized_address}<br/>
-          <strong>GPS:</strong> ${destination.lat.toFixed(5)}° N, ${destination.lng.toFixed(5)}° W
+          <div style="font-family: monospace; font-size: 10px; font-weight: bold; color: #10b981; text-transform: uppercase;">RECOVERY HUB PAD</div>
+          <strong>${destination.normalized_address || destination.input}</strong><br/>
+          <span style="font-family: monospace; font-size: 11px; color: #64748b;">${destination.lat.toFixed(5)}° N, ${destination.lng.toFixed(5)}° W</span>
         </div>
       `);
     layersGroup.addLayer(destMarker);
 
-    // 2. Draw Real GPS Corridor Polylines
+    // 2. Real GPS Corridor Polylines
     let winnerSamplePoints: Array<[number, number]> = [];
 
     corridors.forEach((corr) => {
@@ -148,7 +146,7 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
 
       if (isWinner) {
         winnerSamplePoints = polylineCoords;
-        // Winning corridor: Glow shadow + solid electric blue polyline
+        // Glow layer for recommended corridor
         const glowLine = L.polyline(polylineCoords, {
           color: "#0284c7",
           weight: 8,
@@ -160,41 +158,40 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
 
         const mainLine = L.polyline(polylineCoords, {
           color: "#0284c7",
-          weight: 4,
+          weight: 3.5,
           opacity: 1.0,
           lineCap: "round",
           lineJoin: "round",
         }).bindPopup(`
           <div style="font-family: sans-serif; font-size: 12px; color: #0f172a; padding: 2px;">
-            <strong style="color: #0284c7; font-size: 13px;">★ RECOMMENDED CORRIDOR (ALPHA)</strong><br/>
-            <strong>Name:</strong> ${corr.name}<br/>
-            <strong>Distance:</strong> ${(corr.total_distance_m / 1000).toFixed(2)} km (${(corr.total_distance_m / 1609.34).toFixed(2)} mi)<br/>
-            <strong>Sample Points:</strong> ${corr.sample_points?.length || 2} verified GPS waypoints
+            <div style="font-family: monospace; font-size: 10px; font-weight: bold; color: #0284c7; text-transform: uppercase;">RECOMMENDED FLIGHT CORRIDOR</div>
+            <strong>${corr.name}</strong><br/>
+            <span>Distance: ${(corr.total_distance_m / 1609.34).toFixed(2)} mi (${(corr.total_distance_m / 1000).toFixed(2)} km)</span><br/>
+            <span style="font-family: monospace; font-size: 11px; color: #64748b;">${corr.sample_points?.length || 2} verified GPS waypoints</span>
           </div>
         `);
         layersGroup.addLayer(mainLine);
       } else {
-        // Alternative corridor: Dashed grey polyline
+        // Alternative corridor: thin dashed gray
         const altLine = L.polyline(polylineCoords, {
           color: "#94a3b8",
-          weight: 2.5,
-          opacity: 0.8,
-          dashArray: "6, 8",
+          weight: 2,
+          opacity: 0.7,
+          dashArray: "5, 7",
           lineCap: "round",
           lineJoin: "round",
         }).bindPopup(`
           <div style="font-family: sans-serif; font-size: 12px; color: #0f172a; padding: 2px;">
-            <strong style="color: #64748b;">ALTERNATIVE CANDIDATE ROUTE</strong><br/>
-            <strong>Name:</strong> ${corr.name}<br/>
-            <strong>Distance:</strong> ${(corr.total_distance_m / 1000).toFixed(2)} km<br/>
-            <strong>Status:</strong> Rejected candidate
+            <div style="font-family: monospace; font-size: 10px; font-weight: bold; color: #64748b; text-transform: uppercase;">CANDIDATE DETOUR (REJECTED)</div>
+            <strong>${corr.name}</strong><br/>
+            <span>Distance: ${(corr.total_distance_m / 1000).toFixed(2)} km</span>
           </div>
         `);
         layersGroup.addLayer(altLine);
       }
     });
 
-    // 3. Draw Real Mireye Powerline / Infrastructure Hazards
+    // 3. Physical Hazard Annotations
     if (showHazards) {
       const allObstacles = [
         ...(computed.corridor_a?.obstacles || []),
@@ -217,42 +214,42 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
           className: "custom-hazard-pin",
           html: `
             <div style="
-              width: 26px;
-              height: 26px;
+              width: 22px;
+              height: 22px;
               background: ${markerColor};
               border: 2px solid #ffffff;
-              border-radius: 50%;
+              border-radius: 4px;
               display: flex;
               align-items: center;
               justify-content: center;
-              box-shadow: 0 2px 8px ${markerColor}66;
+              box-shadow: 0 2px 6px ${markerColor}66;
               color: #ffffff;
               font-weight: bold;
-              font-size: 12px;
+              font-size: 11px;
             ">
               ⚡
             </div>
           `,
-          iconSize: [26, 26],
-          iconAnchor: [13, 13],
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
         });
 
         const hazardMarker = L.marker([obs.lat, obs.lng], { icon: hazardIcon })
           .bindPopup(`
             <div style="font-family: sans-serif; font-size: 12px; line-height: 1.4; color: #0f172a; max-width: 240px; padding: 2px;">
-              <strong style="color: ${markerColor}; font-size: 13px;">⚠️ ${obs.obstacle_type}</strong><br/>
-              <strong>Severity:</strong> <span style="color: ${markerColor}; font-weight: bold;">${obs.severity}</span><br/>
-              <strong>Distance:</strong> ${obs.distance_m.toFixed(1)}m from route<br/>
-              ${obs.voltage_kv ? `<strong>Voltage:</strong> ${obs.voltage_kv} kV<br/>` : ""}
-              <strong>Source:</strong> ${obs.source}<br/>
-              <p style="margin: 4px 0 0 0; font-size: 11px; color: #475569;">${obs.description}</p>
+              <div style="font-family: monospace; font-size: 10px; font-weight: bold; color: ${markerColor}; text-transform: uppercase;">
+                ${obs.obstacle_type} · ${obs.distance_m.toFixed(1)}M CLEARANCE
+              </div>
+              ${obs.voltage_kv ? `<div style="font-family: monospace; font-size: 11px; font-weight: bold;">Grid Voltage: ${obs.voltage_kv} kV</div>` : ""}
+              <div style="font-size: 11px; color: #475569; margin-top: 2px;">Source: ${obs.source}</div>
+              <p style="margin: 4px 0 0 0; font-size: 11px; color: #334155;">${obs.description}</p>
             </div>
           `);
         layersGroup.addLayer(hazardMarker);
       });
     }
 
-    // 4. Draw Real Emergency Landing Zones
+    // 4. Emergency Landing Zone Callouts
     if (showLandingZones) {
       const winnerLandingZones = computed[recommendedCorridorId]?.landing_zones || [];
 
@@ -263,69 +260,73 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
           className: "custom-lz-pin",
           html: `
             <div style="
-              width: 26px;
-              height: 26px;
+              width: 22px;
+              height: 22px;
               background: #059669;
               border: 2px solid #ffffff;
-              border-radius: 50%;
+              border-radius: 4px;
               display: flex;
               align-items: center;
               justify-content: center;
-              box-shadow: 0 2px 8px rgba(5, 150, 105, 0.4);
+              box-shadow: 0 2px 6px rgba(5, 150, 105, 0.35);
               color: #ffffff;
               font-weight: bold;
-              font-size: 11px;
+              font-size: 10px;
+              font-family: monospace;
             ">
-              🛬
+              LZ
             </div>
           `,
-          iconSize: [26, 26],
-          iconAnchor: [13, 13],
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
         });
 
         const lzMarker = L.marker([lz.lat, lz.lng], { icon: lzIcon })
           .bindPopup(`
             <div style="font-family: sans-serif; font-size: 12px; line-height: 1.4; color: #0f172a; max-width: 240px; padding: 2px;">
-              <strong style="color: #059669; font-size: 13px;">🛡️ Safe Landing Zone LZ-0${idx + 1}</strong><br/>
-              <strong>Site:</strong> ${lz.description}<br/>
-              <strong>Clearance:</strong> ${lz.infrastructure_clearance_m.toFixed(1)}m radius<br/>
-              <strong>Terrain Slope:</strong> ${lz.slope_degrees.toFixed(1)}°<br/>
-              <strong>Route Distance:</strong> ${lz.distance_along_route_miles.toFixed(2)} mi (${Math.round(lz.distance_along_route_m)}m)<br/>
-              <strong>Source:</strong> ${lz.source}
+              <div style="font-family: monospace; font-size: 10px; font-weight: bold; color: #059669; text-transform: uppercase;">
+                EMERGENCY LANDING ZONE LZ-0${idx + 1}
+              </div>
+              <strong>${lz.description}</strong><br/>
+              <span>Clearance: ${lz.infrastructure_clearance_m.toFixed(1)}m radius · Slope: ${lz.slope_degrees.toFixed(1)}°</span><br/>
+              <span style="font-family: monospace; font-size: 11px; color: #64748b;">Mile ${lz.distance_along_route_miles.toFixed(2)} along corridor</span>
             </div>
           `);
         layersGroup.addLayer(lzMarker);
       });
     }
 
-    // Auto-fit bounds to real coordinates
+    // Auto-fit bounds
     if (allLatLngs.length > 0) {
       const bounds = L.latLngBounds(allLatLngs);
-      map.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
+      map.fitBounds(bounds, { padding: [35, 35], maxZoom: 15 });
     }
 
-    // 5. Animated Drone Marker flying along the REAL GPS waypoints
+    // 5. Animated Drone GPS Marker
     if (winnerSamplePoints.length > 1) {
       const droneIcon = L.divIcon({
         className: "drone-gps-marker",
         html: `
           <div style="
-            width: 28px;
-            height: 28px;
-            background: #facc15;
-            border: 2px solid #0f172a;
+            width: 24px;
+            height: 24px;
+            background: #0284c7;
+            border: 2px solid #ffffff;
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 0 12px rgba(250, 204, 21, 0.9);
-            font-size: 13px;
+            box-shadow: 0 0 10px rgba(2, 132, 199, 0.8);
+            font-size: 10px;
+            color: #ffffff;
+            font-family: monospace;
+            font-weight: bold;
           ">
-            🛸
+            ▲
           </div>
         `,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
+        iconSize: [24, 24],
+        iconAnchor: [12, 12],
       });
 
       const droneMarker = L.marker(winnerSamplePoints[0], { icon: droneIcon });
@@ -335,7 +336,7 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
       let progress = 0;
       const animateDrone = () => {
         if (isSimulating && winnerSamplePoints.length > 1) {
-          progress = (progress + 0.003) % 1.0;
+          progress = (progress + 0.0025) % 1.0;
           const totalSegs = winnerSamplePoints.length - 1;
           const scaled = progress * totalSegs;
           const idx = Math.min(Math.floor(scaled), totalSegs - 1);
@@ -363,14 +364,14 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
   }, [result, showHazards, showLandingZones, showAlternatives, isSimulating]);
 
   return (
-    <div className="relative w-full h-[520px] lg:h-[600px] rounded-2xl overflow-hidden border border-slate-200 shadow-xl bg-white select-none">
+    <div className="relative w-full h-[480px] lg:h-[580px] rounded-lg overflow-hidden border border-slate-200 shadow-xs bg-white select-none">
       {/* Top Floating Controls Bar */}
-      <div className="absolute top-4 left-4 right-4 z-[500] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+      <div className="absolute top-3 left-3 right-3 z-[500] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
         <div className="flex items-center gap-2 pointer-events-auto">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-sm text-xs font-semibold text-slate-800">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/95 backdrop-blur-md border border-slate-200 text-xs font-semibold text-slate-800 shadow-xs">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Real-World GIS Map (Carto / OSM)</span>
-            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="font-mono text-[11px]">GIS OpenStreetMap Engine</span>
+            <span className="text-[9px] uppercase font-mono px-1 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
               100% Real GPS
             </span>
           </div>
@@ -379,9 +380,9 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
         <div className="flex items-center gap-2 pointer-events-auto">
           <button
             onClick={() => setIsSimulating(!isSimulating)}
-            className="px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-sm text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+            className="px-2.5 py-1 rounded-md bg-white/95 backdrop-blur-md border border-slate-200 text-[11px] font-mono font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-xs"
           >
-            {isSimulating ? "⏸️ Pause Drone" : "▶️ Resume Flight"}
+            {isSimulating ? "PAUSE FLIGHT" : "RESUME FLIGHT"}
           </button>
         </div>
       </div>
@@ -389,45 +390,45 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
       {/* Main Map Container */}
       <div ref={mapContainerRef} className="w-full h-full" />
 
-      {/* Bottom Layer Controls */}
-      <div className="absolute bottom-4 left-4 right-4 z-[500] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-        <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-sm pointer-events-auto">
+      {/* Bottom Layer Filter Controls */}
+      <div className="absolute bottom-3 left-3 right-3 z-[500] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+        <div className="flex flex-wrap items-center gap-1 p-0.5 rounded-md bg-white/95 backdrop-blur-md border border-slate-200 shadow-xs pointer-events-auto text-[11px] font-mono">
           <button
             onClick={() => setShowHazards(!showHazards)}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+            className={`px-2 py-0.5 rounded transition-colors ${
               showHazards
                 ? "bg-amber-50 text-amber-800 border border-amber-300 font-semibold"
                 : "text-slate-400 hover:text-slate-600"
             }`}
           >
-            ⚡ Mireye Hazards
+            ⚡ HAZARDS
           </button>
           <button
             onClick={() => setShowLandingZones(!showLandingZones)}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+            className={`px-2 py-0.5 rounded transition-colors ${
               showLandingZones
                 ? "bg-emerald-50 text-emerald-800 border border-emerald-300 font-semibold"
                 : "text-slate-400 hover:text-slate-600"
             }`}
           >
-            🛬 Safe Landing Sites
+            🛬 LANDING PADS
           </button>
           <button
             onClick={() => setShowAlternatives(!showAlternatives)}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
+            className={`px-2 py-0.5 rounded transition-colors ${
               showAlternatives
                 ? "bg-sky-50 text-sky-800 border border-sky-300 font-semibold"
                 : "text-slate-400 hover:text-slate-600"
             }`}
           >
-            🛣️ Alternative Routes
+            🛣️ DETOUR ROUTES
           </button>
         </div>
 
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-sm text-xs font-mono text-slate-600 pointer-events-auto">
-          <span>Lat: {launch.lat.toFixed(4)}°N</span>
-          <span>•</span>
-          <span>Lng: {launch.lng.toFixed(4)}°W</span>
+        <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/95 backdrop-blur-md border border-slate-200 text-[10px] font-mono text-slate-500 shadow-xs pointer-events-auto">
+          <span>ORIGIN: {launch.lat.toFixed(4)}°N</span>
+          <span>·</span>
+          <span>{launch.lng.toFixed(4)}°W</span>
         </div>
       </div>
     </div>

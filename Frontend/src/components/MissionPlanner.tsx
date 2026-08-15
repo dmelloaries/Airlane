@@ -10,8 +10,8 @@ interface MissionPlannerProps {
 
 const PRESETS = [
   {
-    name: "Palo Alto Innovation Corridor",
-    tag: "Silicon Valley Primary",
+    name: "Palo Alto Corridor",
+    tag: "Silicon Valley Sector",
     launch: "Cubberley Community Center, Palo Alto",
     destination: "Byxbee Park, Baylands Palo Alto",
     offset: 600,
@@ -21,8 +21,8 @@ const PRESETS = [
     payload: 1.5,
   },
   {
-    name: "Cedar Creek 345kV Grid Test",
-    tag: "Mireye Powerline Risk",
+    name: "Cedar Creek 345kV Grid",
+    tag: "Powerline Clearance",
     launch: "480 Berdoll Ln, Cedar Creek TX",
     destination: "912 Elm St, Cedar Creek TX",
     offset: 600,
@@ -32,7 +32,7 @@ const PRESETS = [
     payload: 2.2,
   },
   {
-    name: "Stanford Park to Moffett Hub",
+    name: "Stanford to Moffett Hub",
     tag: "Class D Airspace",
     launch: "Stanford Research Park, Palo Alto",
     destination: "Moffett Federal Airfield Hub",
@@ -83,45 +83,62 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
-      {/* Hero Section */}
-      <div className="text-center max-w-3xl mx-auto space-y-3 pt-2 sm:pt-6">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-50 border border-sky-200 text-sky-700 text-xs font-semibold shadow-xs">
-          <span className="w-2 h-2 rounded-full bg-sky-500 animate-pulse" />
-          <span>Next-Gen Autonomous Drone Infrastructure</span>
+    <div className="space-y-6 animate-in fade-in duration-300">
+      {/* Editorial Hero Header */}
+      <div className="border-b border-slate-200 pb-5 pt-2 flex flex-col md:flex-row md:items-end justify-between gap-4">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 text-xs font-mono text-slate-500 uppercase tracking-wider">
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-600" />
+            <span>FAA PART 108 BVLOS CORRIDOR ENGINE</span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight font-display">
+            Plan the safest route through the physical world.
+          </h1>
+          <p className="text-sm text-slate-600 max-w-2xl font-normal leading-relaxed">
+            Airlane builds a real-time digital twin of terrain, airspace, infrastructure, population, and wind to determine the safest autonomous drone corridor.
+          </p>
         </div>
-        <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-slate-900 tracking-tight font-display">
-          Plan the safest route <br className="hidden sm:block" />
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-sky-600 via-blue-600 to-indigo-600">
-            through the sky.
-          </span>
-        </h1>
-        <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto font-normal">
-          Airlane understands the world around your drone and finds the safest path through it.
-        </p>
+
+        {/* Inline Engineering Specs */}
+        <div className="hidden lg:flex items-center gap-4 text-xs font-mono text-slate-600 bg-white border border-slate-200 px-3.5 py-2 rounded-md shadow-xs">
+          <div>
+            <span className="text-[10px] text-slate-400 block uppercase">SOURCES</span>
+            <span className="font-bold text-slate-800">4 LIVE FEEDS</span>
+          </div>
+          <div className="w-px h-6 bg-slate-200" />
+          <div>
+            <span className="text-[10px] text-slate-400 block uppercase">RESOLUTION</span>
+            <span className="font-bold text-slate-800">BLOCK GROUP</span>
+          </div>
+          <div className="w-px h-6 bg-slate-200" />
+          <div>
+            <span className="text-[10px] text-slate-400 block uppercase">SAFETY BASIS</span>
+            <span className="font-bold text-emerald-700">DETERMINISTIC</span>
+          </div>
+        </div>
       </div>
 
-      {/* Main Grid: Floating Mission Input Card Over Interactive Miniature Digital Twin */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Floating Card: Plan a Flight Form (5 cols) */}
-        <div className="lg:col-span-5 bg-white border border-slate-200/90 rounded-2xl p-6 sm:p-7 shadow-xl shadow-slate-200/50 space-y-6">
-          <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+      {/* Main Layout: Asymmetrical Console (5 cols) + Living Digital Twin World (7 cols) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Flight Planning Console (5 cols) */}
+        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-lg p-5 shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight font-display">
-                Plan a flight
+              <h2 className="text-base font-bold text-slate-900 font-display">
+                Flight Parameters
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Autonomous corridor generator & risk classifier
+              <p className="text-xs text-slate-500 font-mono">
+                Origin & Destination Endpoints
               </p>
             </div>
-            <span className="text-xs font-mono font-bold px-2 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
-              Part 108 Tier 1
+            <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+              01 / INPUT
             </span>
           </div>
 
-          {/* Preset Chips */}
-          <div className="space-y-2">
-            <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+          {/* Quick Presets */}
+          <div className="space-y-1.5">
+            <label className="block text-[10px] font-mono font-bold text-slate-400 uppercase tracking-wider">
               Quick Mission Presets
             </label>
             <div className="flex flex-wrap gap-1.5">
@@ -130,9 +147,9 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
                   key={idx}
                   type="button"
                   onClick={() => applyPreset(p)}
-                  className={`text-xs px-2.5 py-1.5 rounded-lg border font-medium transition-all text-left ${
+                  className={`text-xs px-2.5 py-1 rounded-md border font-medium transition-colors text-left ${
                     launch === p.launch
-                      ? "bg-sky-50 border-sky-300 text-sky-800 font-semibold shadow-xs"
+                      ? "bg-sky-50 border-sky-300 text-sky-800 font-semibold"
                       : "bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-600"
                   }`}
                 >
@@ -142,97 +159,93 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
             </div>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Input Form */}
+          <form onSubmit={handleSubmit} className="space-y-3.5 pt-1">
             {/* Launch Input */}
-            <div className="space-y-1.5">
-              <label className="flex items-center justify-between text-xs font-bold text-slate-700">
+            <div className="space-y-1">
+              <label className="flex items-center justify-between text-xs font-bold text-slate-800">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-cyan-500" />
+                  <span className="w-2 h-2 rounded-full bg-sky-600" />
                   Launch Location
                 </span>
-                <span className="text-[10px] text-slate-400 font-normal">Takeoff Hub</span>
+                <span className="text-[10px] font-mono text-slate-400 font-normal">ORIGIN</span>
               </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={launch}
-                  onChange={(e) => setLaunch(e.target.value)}
-                  placeholder="e.g. Cubberley Community Center, Palo Alto"
-                  className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50/80 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
-                  required
-                />
-              </div>
+              <input
+                type="text"
+                value={launch}
+                onChange={(e) => setLaunch(e.target.value)}
+                placeholder="e.g. Cubberley Community Center, Palo Alto"
+                className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50/80 border border-slate-200 rounded-md text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition-all font-sans"
+                required
+              />
             </div>
 
             {/* Destination Input */}
-            <div className="space-y-1.5">
-              <label className="flex items-center justify-between text-xs font-bold text-slate-700">
+            <div className="space-y-1">
+              <label className="flex items-center justify-between text-xs font-bold text-slate-800">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  <span className="w-2 h-2 rounded-full bg-emerald-600" />
                   Destination
                 </span>
-                <span className="text-[10px] text-slate-400 font-normal">Recovery Hub</span>
+                <span className="text-[10px] font-mono text-slate-400 font-normal">RECOVERY</span>
               </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={destination}
-                  onChange={(e) => setDestination(e.target.value)}
-                  placeholder="e.g. Byxbee Park, Palo Alto"
-                  className="w-full px-3.5 py-2.5 text-xs sm:text-sm bg-slate-50/80 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 transition-all"
-                  required
-                />
-              </div>
+              <input
+                type="text"
+                value={destination}
+                onChange={(e) => setDestination(e.target.value)}
+                placeholder="e.g. Byxbee Park, Palo Alto"
+                className="w-full px-3 py-2 text-xs sm:text-sm bg-slate-50/80 border border-slate-200 rounded-md text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition-all font-sans"
+                required
+              />
             </div>
 
             {/* Advanced Settings Toggle */}
-            <div className="pt-2">
+            <div className="pt-1">
               <button
                 type="button"
                 onClick={() => setShowAdvanced(!showAdvanced)}
-                className="text-xs font-semibold text-sky-600 hover:text-sky-700 flex items-center gap-1 transition-colors"
+                className="text-xs font-mono font-medium text-sky-600 hover:text-sky-800 flex items-center gap-1 transition-colors"
               >
-                <span>{showAdvanced ? "▾ Hide flight parameters" : "▸ Advanced: Payload, Altitude & Drone Class"}</span>
+                <span>{showAdvanced ? "[-] HIDE FLIGHT PARAMETERS" : "[+] ADVANCED: ALTITUDE, CLASS & SPACING"}</span>
               </button>
 
               {showAdvanced && (
-                <div className="mt-3 p-4 rounded-xl bg-slate-50 border border-slate-200/80 space-y-3 animate-in fade-in duration-200">
-                  <div className="grid grid-cols-2 gap-3">
+                <div className="mt-2.5 p-3 rounded-md bg-slate-50 border border-slate-200 space-y-2.5 text-xs font-mono">
+                  <div className="grid grid-cols-2 gap-2.5">
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                        Payload Weight (kg)
+                      <label className="block text-[10px] text-slate-500 mb-1">
+                        CRUISE ALTITUDE (FT AGL)
+                      </label>
+                      <input
+                        type="number"
+                        value={altitudeFt}
+                        onChange={(e) => setAltitudeFt(parseInt(e.target.value) || 300)}
+                        className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-slate-900 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] text-slate-500 mb-1">
+                        PAYLOAD WEIGHT (KG)
                       </label>
                       <input
                         type="number"
                         step="0.1"
                         value={payloadKg}
                         onChange={(e) => setPayloadKg(parseFloat(e.target.value) || 1.5)}
-                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-900"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                        Cruise Altitude (ft AGL)
-                      </label>
-                      <input
-                        type="number"
-                        value={altitudeFt}
-                        onChange={(e) => setAltitudeFt(parseInt(e.target.value) || 300)}
-                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-900"
+                        className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-slate-900 text-xs"
                       />
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 gap-2.5">
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                        Drone Class
+                      <label className="block text-[10px] text-slate-500 mb-1">
+                        DRONE CLASS
                       </label>
                       <select
                         value={droneClass}
                         onChange={(e) => setDroneClass(e.target.value as any)}
-                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-900"
+                        className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-slate-900 text-xs font-sans"
                       >
                         <option value="small_uav">Small UAV (≤55 lbs)</option>
                         <option value="micro_uav">Micro UAV (≤0.55 lbs)</option>
@@ -240,14 +253,14 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                        Detour Offset (m)
+                      <label className="block text-[10px] text-slate-500 mb-1">
+                        DETOUR OFFSET (M)
                       </label>
                       <input
                         type="number"
                         value={offsetM}
                         onChange={(e) => setOffsetM(parseInt(e.target.value) || 600)}
-                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-900"
+                        className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-slate-900 text-xs"
                       />
                     </div>
                   </div>
@@ -255,55 +268,43 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
               )}
             </div>
 
-            {/* Submit Primary CTA Button */}
+            {/* Submit CTA Button: Compact, confident, 6-8px radius */}
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 px-4 bg-gradient-to-r from-sky-600 via-blue-600 to-sky-700 hover:from-sky-700 hover:to-blue-700 text-white font-bold text-sm rounded-xl shadow-lg shadow-sky-600/25 hover:shadow-sky-600/35 transition-all flex items-center justify-center gap-2 group active:scale-[0.99] cursor-pointer"
+              className="w-full py-2.5 px-4 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs sm:text-sm rounded-md shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
             >
               {isLoading ? (
                 <>
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Analyzing Silicon Valley Airspace...</span>
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>ANALYZING AIRSPACE...</span>
                 </>
               ) : (
                 <>
-                  <span>Plan route</span>
-                  <span className="group-hover:translate-x-1 transition-transform">→</span>
+                  <span>PLAN ROUTE</span>
+                  <span>→</span>
                 </>
               )}
             </button>
           </form>
 
-          {/* Value Badges */}
-          <div className="pt-2 grid grid-cols-3 gap-2 text-center text-[11px] font-medium text-slate-500 border-t border-slate-100">
-            <div className="p-2 rounded-lg bg-slate-50">
-              <span className="block font-bold text-slate-800">4 Data Sources</span>
-              <span>FAA · NOAA · Mireye · Census</span>
-            </div>
-            <div className="p-2 rounded-lg bg-slate-50">
-              <span className="block font-bold text-slate-800">Part 108</span>
-              <span>Ground Tier Risk</span>
-            </div>
-            <div className="p-2 rounded-lg bg-slate-50">
-              <span className="block font-bold text-slate-800">Obstacle Avoid</span>
-              <span>Real-time Detour</span>
-            </div>
+          {/* Technical Data Sources Footer */}
+          <div className="pt-2 border-t border-slate-100 grid grid-cols-4 gap-1 text-center font-mono text-[10px] text-slate-500">
+            <div className="p-1 rounded bg-slate-50">FAA UASFM</div>
+            <div className="p-1 rounded bg-slate-50">NOAA METAR</div>
+            <div className="p-1 rounded bg-slate-50">MIREYE 345kV</div>
+            <div className="p-1 rounded bg-slate-50">US CENSUS</div>
           </div>
         </div>
 
-        {/* Right Digital Twin Viewport (7 cols) */}
+        {/* Right Digital Twin Environment (7 cols) */}
         <div className="lg:col-span-7 space-y-2">
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-              <h3 className="text-sm font-bold text-slate-800 font-display">
-                Living Silicon Valley Flight Environment
-              </h3>
+          <div className="flex items-center justify-between px-1 text-xs font-mono text-slate-500">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="font-bold text-slate-800">LIVING DIGITAL TWIN ENVIRONMENT</span>
             </div>
-            <span className="text-xs text-slate-500 font-mono">
-              Hover/Click objects to inspect
-            </span>
+            <span>INTERACTIVE AIRSPACE</span>
           </div>
 
           <MiniatureCityCanvas

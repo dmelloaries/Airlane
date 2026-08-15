@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useMemo } from "react";
-import type { AnalysisResult, SamplePoint, ObstacleRisk, LandingZone } from "../types/airlane";
+import type { AnalysisResult, ObstacleRisk, LandingZone } from "../types/airlane";
 
 export interface SelectedObjectInfo {
   type: "hazard" | "airspace" | "landing_zone" | "building" | "drone" | "corridor" | "launch" | "destination";
@@ -17,6 +17,7 @@ interface MiniatureCityCanvasProps {
   selectedCorridorId?: "corridor_a" | "corridor_b" | "corridor_c";
   onSelectObject?: (info: SelectedObjectInfo | null) => void;
   isInteractive?: boolean;
+  isHeroBackground?: boolean;
 }
 
 export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
@@ -25,6 +26,7 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
   selectedCorridorId = "corridor_a",
   onSelectObject,
   isInteractive = true,
+  isHeroBackground = false,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -38,8 +40,6 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
   // Layer Toggles
   const [showAirspace, setShowAirspace] = useState<boolean>(true);
   const [showHazards, setShowHazards] = useState<boolean>(true);
-  const [showPopulation, setShowPopulation] = useState<boolean>(true);
-  const [showWind, setShowWind] = useState<boolean>(true);
   const [showLandingPads, setShowLandingPads] = useState<boolean>(true);
   const [showCorridors, setShowCorridors] = useState<boolean>(true);
   const [simSpeed, setSimSpeed] = useState<number>(1.0);
@@ -50,20 +50,20 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
 
   // Simulation time
   const simTimeRef = useRef<number>(0);
-  const droneProgressRef = useRef<number>(0.1);
+  const drone1ProgressRef = useRef<number>(0.1);
+  const drone2ProgressRef = useRef<number>(0.5);
+  const drone3ProgressRef = useRef<number>(0.0);
 
   // -------------------------------------------------------------
   // REAL GEOSPATIAL PROJECTION ENGINE
   // Converts real GPS lat/lng from backend into 3D isometric space
   // -------------------------------------------------------------
   const geoData = useMemo(() => {
-    // Fallback default coordinates if analysisResult is not yet loaded
     const launchLat = analysisResult?.launch?.lat ?? 37.4172;
     const launchLng = analysisResult?.launch?.lng ?? -122.1084;
     const destLat = analysisResult?.destination?.lat ?? 37.4481;
     const destLng = analysisResult?.destination?.lng ?? -122.1063;
 
-    // Collect all real coordinate points across corridors and hazards
     const allLats = [launchLat, destLat];
     const allLngs = [launchLng, destLng];
 
@@ -109,7 +109,6 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
     const latSpan = Math.max(0.005, maxLat - minLat);
     const lngSpan = Math.max(0.005, maxLng - minLng);
 
-    // Compute meters per degree at this latitude
     const metersPerLat = 111132;
     const metersPerLng = 111132 * Math.cos((centerLat * Math.PI) / 180);
 
@@ -117,10 +116,8 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
     const totalMetersY = latSpan * metersPerLat;
     const maxDimensionMeters = Math.max(totalMetersX, totalMetersY, 2000);
 
-    // Scale to fit nicely in [-260, 260] 3D world coordinate bounds
-    const worldScale = 480 / maxDimensionMeters;
+    const worldScale = 460 / maxDimensionMeters;
 
-    // Convert GPS (lat, lng, alt) to 3D World (x, y, z)
     const toWorldCoords = (lat: number, lng: number, altFt: number = 0) => {
       const dxMeters = (lng - centerLng) * metersPerLng;
       const dyMeters = (lat - centerLat) * metersPerLat;
@@ -135,11 +132,9 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
       };
     };
 
-    // Project Launch and Destination
     const launchWorld = toWorldCoords(launchLat, launchLng, 0);
     const destWorld = toWorldCoords(destLat, destLng, 0);
 
-    // Project Real Corridors
     const projectCorridor = (corrId: string) => {
       const corrData = analysisResult?.corridors?.find((c) => c.id === corrId);
       if (corrData?.sample_points && corrData.sample_points.length > 0) {
@@ -149,7 +144,6 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
         });
       }
 
-      // If sample points are synthetic or direct
       const cruiseAlt = analysisResult?.parameters?.cruise_altitude_ft || 300;
       if (corrId === "corridor_b") {
         const midLat = (launchLat + destLat) / 2 + 0.006;
@@ -174,7 +168,7 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
         ];
       }
 
-      // Default Corridor A
+      // Default Corridor A with waypoint curvature
       const midLat = (launchLat + destLat) / 2;
       const midLng = (launchLng + destLng) / 2;
       return [
@@ -188,7 +182,6 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
     const corrBWorld = projectCorridor("corridor_b");
     const corrCWorld = projectCorridor("corridor_c");
 
-    // Project Real Mireye Obstacles
     const projectedObstacles = allObstacles.map((obs) => {
       const w = toWorldCoords(obs.lat, obs.lng, 0);
       return {
@@ -198,7 +191,6 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
       };
     });
 
-    // Project Real Emergency Landing Zones
     const projectedLandingZones = allLandingZones.map((lz) => {
       const w = toWorldCoords(lz.lat, lz.lng, 0);
       return {
@@ -211,13 +203,13 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
     return {
       launch: {
         ...launchWorld,
-        name: analysisResult?.launch?.normalized_address || analysisResult?.launch?.input || "Launch Hub",
+        name: analysisResult?.launch?.normalized_address || analysisResult?.launch?.input || "Launch Pad",
         lat: launchLat,
         lng: launchLng,
       },
       destination: {
         ...destWorld,
-        name: analysisResult?.destination?.normalized_address || analysisResult?.destination?.input || "Destination Hub",
+        name: analysisResult?.destination?.normalized_address || analysisResult?.destination?.input || "Recovery Hub",
         lat: destLat,
         lng: destLng,
       },
@@ -232,14 +224,53 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
     };
   }, [analysisResult]);
 
-  // Reset view
+  // Static Miniature City Scenery (Silicon Valley campuses, buildings, trees, infrastructure)
+  const cityFeatures = useMemo(() => {
+    const buildings = [
+      // Silicon Valley Central Campuses
+      { x: -140, y: -90, w: 55, h: 42, height: 32, type: "campus", color: "#e2e8f0", roof: "#cbd5e1", label: "RESEARCH QUAD" },
+      { x: -70, y: -130, w: 45, h: 45, height: 48, type: "tower", color: "#93c5fd", roof: "#3b82f6", label: "INNOVATION TOWER" },
+      { x: 20, y: -110, w: 60, h: 36, height: 26, type: "campus", color: "#f1f5f9", roof: "#94a3b8", label: "LABS" },
+      { x: 110, y: -80, w: 40, h: 40, height: 40, type: "tower", color: "#bae6fd", roof: "#0284c7", label: "AVIONICS HUB" },
+      { x: -160, y: 50, w: 50, h: 35, height: 22, type: "hangar", color: "#e2e8f0", roof: "#64748b", label: "FLIGHT HANGAR" },
+      { x: -40, y: 80, w: 36, h: 36, height: 18, type: "substation", color: "#fef08a", roof: "#eab308", label: "GRID SUBSTATION" },
+      { x: 70, y: 60, w: 52, h: 38, height: 28, type: "campus", color: "#f8fafc", roof: "#cbd5e1", label: "DATA CENTER" },
+      { x: 140, y: 30, w: 42, h: 42, height: 36, type: "tower", color: "#e0e7ff", roof: "#6366f1", label: "TECH COMMONS" },
+    ];
+
+    const trees = [
+      { x: -180, y: -120, r: 9, h: 14 },
+      { x: -165, y: -140, r: 7, h: 12 },
+      { x: -110, y: -160, r: 8, h: 13 },
+      { x: -20, y: -160, r: 10, h: 15 },
+      { x: 70, y: -150, r: 8, h: 13 },
+      { x: 150, y: -130, r: 9, h: 14 },
+      { x: -190, y: 10, r: 8, h: 13 },
+      { x: -120, y: 20, r: 7, h: 11 },
+      { x: -80, y: 40, r: 9, h: 14 },
+      { x: 20, y: 30, r: 8, h: 12 },
+      { x: 120, y: 120, r: 10, h: 15 },
+      { x: 160, y: 90, r: 8, h: 13 },
+      { x: -90, y: 130, r: 9, h: 14 },
+      { x: 30, y: 130, r: 7, h: 12 },
+    ];
+
+    const powerTowers = [
+      { x: -80, y: 20, height: 50, label: "345kV TOWER #1" },
+      { x: -20, y: 0, height: 50, label: "345kV TOWER #2" },
+      { x: 40, y: -20, height: 50, label: "345kV TOWER #3" },
+    ];
+
+    return { buildings, trees, powerTowers };
+  }, []);
+
   const handleResetView = () => {
     setZoom(1.0);
     setPan({ x: 0, y: 0 });
     setCameraMode("isometric");
   };
 
-  // Canvas Mouse / Touch Handlers
+  // Canvas Mouse & Interaction Handlers
   const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
     if (!isInteractive) return;
     setIsDragging(true);
@@ -274,42 +305,42 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
 
     // Check hit test on Launch
     const pLaunch = toIsoLocal(geoData.launch.x, geoData.launch.y, 10);
-    if (Math.hypot(mouseX - pLaunch.x, mouseY - pLaunch.y) < 35) {
-      setHoveredItem({ x: mouseX, y: mouseY, text: `🛫 Real Launch: ${geoData.launch.name}` });
+    if (Math.hypot(mouseX - pLaunch.x, mouseY - pLaunch.y) < 32) {
+      setHoveredItem({ x: mouseX, y: mouseY, text: `TAKEOFF HUB: ${geoData.launch.name}` });
       canvas.style.cursor = "pointer";
       return;
     }
 
     // Check hit test on Destination
     const pDest = toIsoLocal(geoData.destination.x, geoData.destination.y, 10);
-    if (Math.hypot(mouseX - pDest.x, mouseY - pDest.y) < 35) {
-      setHoveredItem({ x: mouseX, y: mouseY, text: `🎯 Real Destination: ${geoData.destination.name}` });
+    if (Math.hypot(mouseX - pDest.x, mouseY - pDest.y) < 32) {
+      setHoveredItem({ x: mouseX, y: mouseY, text: `RECOVERY HUB: ${geoData.destination.name}` });
       canvas.style.cursor = "pointer";
       return;
     }
 
-    // Check hit test on Real Mireye Obstacles
+    // Check hit test on Obstacles
     for (const obs of geoData.obstacles) {
       const pObs = toIsoLocal(obs.worldX, obs.worldY, 35);
-      if (Math.hypot(mouseX - pObs.x, mouseY - pObs.y) < 35) {
+      if (Math.hypot(mouseX - pObs.x, mouseY - pObs.y) < 30) {
         setHoveredItem({
           x: mouseX,
           y: mouseY,
-          text: `⚡ Mireye Obstacle: ${obs.obstacle_type} (${obs.distance_m.toFixed(1)}m Clearance)`,
+          text: `⚡ ${obs.obstacle_type.toUpperCase()} · ${obs.distance_m.toFixed(1)}m CLEARANCE`,
         });
         canvas.style.cursor = "pointer";
         return;
       }
     }
 
-    // Check hit test on Real Landing Zones
+    // Check hit test on Landing Zones
     for (const lz of geoData.landingZones) {
       const pLz = toIsoLocal(lz.worldX, lz.worldY, 0);
-      if (Math.hypot(mouseX - pLz.x, mouseY - pLz.y) < 30) {
+      if (Math.hypot(mouseX - pLz.x, mouseY - pLz.y) < 28) {
         setHoveredItem({
           x: mouseX,
           y: mouseY,
-          text: `🛬 Emergency Landing Zone (${lz.infrastructure_clearance_m.toFixed(1)}m Clearance)`,
+          text: `EMERGENCY LANDING ZONE (${lz.infrastructure_clearance_m.toFixed(1)}m CLEARANCE)`,
         });
         canvas.style.cursor = "pointer";
         return;
@@ -328,7 +359,7 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
     if (!isInteractive) return;
     e.preventDefault();
     const zoomFactor = e.deltaY < 0 ? 1.1 : 0.9;
-    setZoom((prev) => Math.max(0.5, Math.min(3.0, prev * zoomFactor)));
+    setZoom((prev) => Math.max(0.5, Math.min(2.8, prev * zoomFactor)));
   };
 
   const handleCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -350,84 +381,84 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
       return { x: cx + isoX * zoom, y: cy + isoY * zoom };
     };
 
-    // 1. Click on Real Launch
+    // 1. Launch
     const pLaunch = toIsoLocal(geoData.launch.x, geoData.launch.y, 10);
-    if (Math.hypot(mouseX - pLaunch.x, mouseY - pLaunch.y) < 40) {
+    if (Math.hypot(mouseX - pLaunch.x, mouseY - pLaunch.y) < 35) {
       onSelectObject({
         type: "launch",
-        title: "Real Launch Origin (Takeoff Pad)",
+        title: "Takeoff Origin Pad",
         subtitle: geoData.launch.name,
-        source: "Geocoded Mission Input",
+        source: "Geocoded Mission Origin",
         metrics: [
-          { label: "Latitude", value: `${geoData.launch.lat.toFixed(5)}° N`, highlight: true },
-          { label: "Longitude", value: `${geoData.launch.lng.toFixed(5)}° W`, highlight: true },
-          { label: "Status", value: "Verified Active Pad" },
-          { label: "Initial Climb", value: "300 ft AGL" },
+          { label: "LATITUDE", value: `${geoData.launch.lat.toFixed(5)}° N`, highlight: true },
+          { label: "LONGITUDE", value: `${geoData.launch.lng.toFixed(5)}° W`, highlight: true },
+          { label: "PAD STATUS", value: "Verified Active" },
+          { label: "INITIAL CLIMB", value: "300 FT AGL" },
         ],
-        description: `Origin point for autonomous flight corridor generation. Validated against FAA UASFM surface ceiling regulations.`,
+        description: "Initial departure hub. Verified clear of immediate wire entanglements and aligned with FAA Part 108 corridor egress standards.",
         coordinates: { lat: geoData.launch.lat, lng: geoData.launch.lng },
       });
       return;
     }
 
-    // 2. Click on Real Destination
+    // 2. Destination
     const pDest = toIsoLocal(geoData.destination.x, geoData.destination.y, 10);
-    if (Math.hypot(mouseX - pDest.x, mouseY - pDest.y) < 40) {
+    if (Math.hypot(mouseX - pDest.x, mouseY - pDest.y) < 35) {
       onSelectObject({
         type: "destination",
-        title: "Real Recovery Hub (Destination Pad)",
+        title: "Recovery Hub Pad",
         subtitle: geoData.destination.name,
-        source: "Geocoded Mission Input",
+        source: "Geocoded Mission Destination",
         metrics: [
-          { label: "Latitude", value: `${geoData.destination.lat.toFixed(5)}° N`, highlight: true },
-          { label: "Longitude", value: `${geoData.destination.lng.toFixed(5)}° W`, highlight: true },
-          { label: "Recovery Pad", value: "Clear & Operational" },
-          { label: "Approach Angle", value: "3.5° Standard" },
+          { label: "LATITUDE", value: `${geoData.destination.lat.toFixed(5)}° N`, highlight: true },
+          { label: "LONGITUDE", value: `${geoData.destination.lng.toFixed(5)}° W`, highlight: true },
+          { label: "RECOVERY PAD", value: "Clear & Operational" },
+          { label: "APPROACH ANGLE", value: "3.5° Standard" },
         ],
-        description: `Terminal recovery waypoint. Verified clear of overhead power lines and ground population congestion.`,
+        description: "Terminal recovery waypoint. Evaluated for ground clearance and minimum obstacle conflict zones.",
         coordinates: { lat: geoData.destination.lat, lng: geoData.destination.lng },
       });
       return;
     }
 
-    // 3. Click on Real Mireye Obstacles
+    // 3. Mireye Obstacles
     for (const obs of geoData.obstacles) {
       const pObs = toIsoLocal(obs.worldX, obs.worldY, 35);
-      if (Math.hypot(mouseX - pObs.x, mouseY - pObs.y) < 40) {
+      if (Math.hypot(mouseX - pObs.x, mouseY - pObs.y) < 35) {
         onSelectObject({
           type: "hazard",
-          title: `Mireye Verified Hazard: ${obs.obstacle_type}`,
+          title: `Infrastructure Hazard: ${obs.obstacle_type}`,
           subtitle: `Distance to Flight Path: ${obs.distance_m.toFixed(1)}m`,
           source: obs.source || "Mireye Earth API",
           metrics: [
-            { label: "Route Clearance", value: `${obs.distance_m.toFixed(1)} m`, highlight: true },
-            { label: "Voltage", value: obs.voltage_kv ? `${obs.voltage_kv} kV` : "High Voltage", highlight: true },
-            { label: "Severity", value: obs.severity },
-            { label: "Mitigation", value: obs.clearance_status || "Detour Enforced" },
+            { label: "LATERAL CLEARANCE", value: `${obs.distance_m.toFixed(1)} m`, highlight: true },
+            { label: "GRID VOLTAGE", value: obs.voltage_kv ? `${obs.voltage_kv} kV` : "345 kV", highlight: true },
+            { label: "SEVERITY", value: obs.severity },
+            { label: "MITIGATION", value: obs.clearance_status || "Detour Enforced" },
           ],
-          description: obs.description || "Real-world electrical transmission infrastructure verified via Mireye Earth API.",
+          description: obs.description || "Real-world electrical transmission line verified via Mireye Earth API. Safe lateral buffer enforced.",
           coordinates: { lat: obs.lat, lng: obs.lng },
         });
         return;
       }
     }
 
-    // 4. Click on Real Landing Zones
+    // 4. Landing Zones
     for (const lz of geoData.landingZones) {
       const pLz = toIsoLocal(lz.worldX, lz.worldY, 0);
-      if (Math.hypot(mouseX - pLz.x, mouseY - pLz.y) < 35) {
+      if (Math.hypot(mouseX - pLz.x, mouseY - pLz.y) < 30) {
         onSelectObject({
           type: "landing_zone",
-          title: `Emergency Forced Landing Zone`,
-          subtitle: lz.description || "Designated Part 108 Abort Site",
+          title: "Designated Emergency Landing Zone",
+          subtitle: lz.description || "Part 108 Safe Abort Clearing",
           source: lz.source || "Airlane BVLOS Terrain Engine",
           metrics: [
-            { label: "Clearance Radius", value: `${lz.infrastructure_clearance_m.toFixed(1)} m`, highlight: true },
-            { label: "Terrain Slope", value: `${lz.slope_degrees.toFixed(1)}°`, highlight: true },
-            { label: "Route Distance", value: `${lz.distance_along_route_miles.toFixed(2)} mi` },
-            { label: "Elevation", value: `${lz.elevation_m.toFixed(1)} m` },
+            { label: "CLEARANCE RADIUS", value: `${lz.infrastructure_clearance_m.toFixed(1)} m`, highlight: true },
+            { label: "TERRAIN SLOPE", value: `${lz.slope_degrees.toFixed(1)}°`, highlight: true },
+            { label: "CORRIDOR DISTANCE", value: `${lz.distance_along_route_miles.toFixed(2)} mi` },
+            { label: "ELEVATION", value: `${lz.elevation_m.toFixed(1)} m` },
           ],
-          description: "Real-world ground clearing analyzed for emergency recovery with low slope and zero wire obstruction.",
+          description: "Emergency abort site identified with low slope and verified zero wire/building obstructions.",
           coordinates: { lat: lz.lat, lng: lz.lng },
         });
         return;
@@ -437,7 +468,7 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
     onSelectObject(null);
   };
 
-  // 60 FPS Render Loop
+  // Render Loop (60 FPS)
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -449,10 +480,11 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
     const render = () => {
       if (isPlaying) {
         simTimeRef.current += 0.016 * simSpeed;
-        droneProgressRef.current = (droneProgressRef.current + 0.0012 * simSpeed) % 1.0;
+        drone1ProgressRef.current = (drone1ProgressRef.current + 0.001 * simSpeed) % 1.0;
+        drone2ProgressRef.current = (drone2ProgressRef.current + 0.0008 * simSpeed) % 1.0;
+        drone3ProgressRef.current = (drone3ProgressRef.current + 0.0012 * simSpeed) % 1.0;
       }
       const t = simTimeRef.current;
-      const progress = droneProgressRef.current;
 
       const width = canvas.clientWidth;
       const height = canvas.clientHeight;
@@ -465,12 +497,12 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
       ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
       ctx.clearRect(0, 0, width, height);
 
-      // Sky Background
-      const skyGrad = ctx.createLinearGradient(0, 0, 0, height);
-      skyGrad.addColorStop(0, "#e0f2fe");
-      skyGrad.addColorStop(0.4, "#f0fdf4");
-      skyGrad.addColorStop(1, "#f8fafc");
-      ctx.fillStyle = skyGrad;
+      // Warm, subtle blueprint sky/terrain background
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+      bgGrad.addColorStop(0, "#f8fafc");
+      bgGrad.addColorStop(0.5, "#f1f5f9");
+      bgGrad.addColorStop(1, "#e2e8f0");
+      ctx.fillStyle = bgGrad;
       ctx.fillRect(0, 0, width, height);
 
       // Camera Transform
@@ -488,8 +520,8 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
         return { x: isoX, y: isoY };
       };
 
-      // 1. Terrain Base
-      const groundRadius = 380;
+      // 1. Terrain Ground Base (Warm Neutral / Pale Architectural Green)
+      const groundRadius = 340;
       ctx.beginPath();
       const g0 = toIso(-groundRadius, -groundRadius, 0);
       const g1 = toIso(groundRadius, -groundRadius, 0);
@@ -500,16 +532,16 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
       ctx.lineTo(g2.x, g2.y);
       ctx.lineTo(g3.x, g3.y);
       ctx.closePath();
-      ctx.fillStyle = "#e2f1e4";
+      ctx.fillStyle = "#eef4f0";
       ctx.fill();
       ctx.strokeStyle = "#cbd5e1";
-      ctx.lineWidth = 1.5;
+      ctx.lineWidth = 1;
       ctx.stroke();
 
-      // Terrain Grid
-      ctx.strokeStyle = "rgba(148, 163, 184, 0.2)";
+      // Topographic Blueprint Grid Lines
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.18)";
       ctx.lineWidth = 1;
-      for (let i = -groundRadius; i <= groundRadius; i += 60) {
+      for (let i = -groundRadius; i <= groundRadius; i += 48) {
         const pA = toIso(i, -groundRadius, 0);
         const pB = toIso(i, groundRadius, 0);
         ctx.beginPath();
@@ -525,7 +557,163 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
         ctx.stroke();
       }
 
-      // 2. Real Connecting Corridor Roads
+      // Engineering Coordinate Crosshairs
+      const crossPoints = [
+        { x: -200, y: -200 }, { x: 0, y: -200 }, { x: 200, y: -200 },
+        { x: -200, y: 0 }, { x: 200, y: 0 },
+        { x: -200, y: 200 }, { x: 0, y: 200 }, { x: 200, y: 200 }
+      ];
+      ctx.strokeStyle = "rgba(100, 116, 139, 0.35)";
+      ctx.lineWidth = 1;
+      crossPoints.forEach((cp) => {
+        const pt = toIso(cp.x, cp.y, 0);
+        ctx.beginPath();
+        ctx.moveTo(pt.x - 4, pt.y);
+        ctx.lineTo(pt.x + 4, pt.y);
+        ctx.moveTo(pt.x, pt.y - 4);
+        ctx.lineTo(pt.x, pt.y + 4);
+        ctx.stroke();
+      });
+
+      // 2. Procedural Silicon Valley Campus Buildings
+      cityFeatures.buildings.forEach((b) => {
+        const p0 = toIso(b.x - b.w / 2, b.y - b.h / 2, 0);
+        const p1 = toIso(b.x + b.w / 2, b.y - b.h / 2, 0);
+        const p2 = toIso(b.x + b.w / 2, b.y + b.h / 2, 0);
+        const p3 = toIso(b.x - b.w / 2, b.y + b.h / 2, 0);
+
+        const t0 = toIso(b.x - b.w / 2, b.y - b.h / 2, b.height);
+        const t1 = toIso(b.x + b.w / 2, b.y - b.h / 2, b.height);
+        const t2 = toIso(b.x + b.w / 2, b.y + b.h / 2, b.height);
+        const t3 = toIso(b.x - b.w / 2, b.y + b.h / 2, b.height);
+
+        // Building Shadow
+        ctx.fillStyle = "rgba(15, 23, 42, 0.08)";
+        ctx.beginPath();
+        ctx.moveTo(p0.x + b.height * 0.4, p0.y + b.height * 0.3);
+        ctx.lineTo(p1.x + b.height * 0.4, p1.y + b.height * 0.3);
+        ctx.lineTo(p2.x + b.height * 0.4, p2.y + b.height * 0.3);
+        ctx.lineTo(p3.x + b.height * 0.4, p3.y + b.height * 0.3);
+        ctx.closePath();
+        ctx.fill();
+
+        // Right Wall
+        ctx.fillStyle = "#94a3b8";
+        ctx.beginPath();
+        ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(t1.x, t1.y);
+        ctx.lineTo(t2.x, t2.y);
+        ctx.lineTo(p2.x, p2.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = "rgba(15, 23, 42, 0.15)";
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+
+        // Left Wall
+        ctx.fillStyle = "#cbd5e1";
+        ctx.beginPath();
+        ctx.moveTo(p2.x, p2.y);
+        ctx.lineTo(t2.x, t2.y);
+        ctx.lineTo(t3.x, t3.y);
+        ctx.lineTo(p3.x, p3.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Roof
+        ctx.fillStyle = b.roof;
+        ctx.beginPath();
+        ctx.moveTo(t0.x, t0.y);
+        ctx.lineTo(t1.x, t1.y);
+        ctx.lineTo(t2.x, t2.y);
+        ctx.lineTo(t3.x, t3.y);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Architectural details (Helipad / HVAC / Solar on roofs)
+        if (b.type === "tower") {
+          const rCenter = toIso(b.x, b.y, b.height);
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.7)";
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.ellipse(rCenter.x, rCenter.y, 8, 4, 0, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+          ctx.font = "bold 6px JetBrains Mono, monospace";
+          ctx.textAlign = "center";
+          ctx.fillText("H", rCenter.x, rCenter.y + 2);
+        }
+      });
+
+      // 3. Silicon Valley Trees & Landscaping
+      cityFeatures.trees.forEach((tr) => {
+        const tb = toIso(tr.x, tr.y, 0);
+        const tt = toIso(tr.x, tr.y, tr.h);
+
+        // Trunk
+        ctx.strokeStyle = "#78716c";
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(tb.x, tb.y);
+        ctx.lineTo(tt.x, tt.y);
+        ctx.stroke();
+
+        // Foliage Crown
+        ctx.fillStyle = "#15803d";
+        ctx.beginPath();
+        ctx.ellipse(tt.x, tt.y, tr.r, tr.r * 0.7, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#166534";
+        ctx.lineWidth = 0.8;
+        ctx.stroke();
+      });
+
+      // 4. Powerline Infrastructure & Transmission Towers
+      if (showHazards) {
+        cityFeatures.powerTowers.forEach((pt, idx) => {
+          const pb = toIso(pt.x, pt.y, 0);
+          const ptop = toIso(pt.x, pt.y, pt.height);
+
+          // Tower Lattice
+          ctx.strokeStyle = "#eab308";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(pb.x - 8, pb.y);
+          ctx.lineTo(ptop.x, ptop.y);
+          ctx.lineTo(pb.x + 8, pb.y);
+          ctx.stroke();
+
+          // Cross arms
+          ctx.beginPath();
+          ctx.moveTo(ptop.x - 16, ptop.y + 6);
+          ctx.lineTo(ptop.x + 16, ptop.y + 6);
+          ctx.moveTo(ptop.x - 12, ptop.y + 14);
+          ctx.lineTo(ptop.x + 12, ptop.y + 14);
+          ctx.stroke();
+
+          // Red Hazard Beacon
+          ctx.fillStyle = "#ef4444";
+          ctx.beginPath();
+          ctx.arc(ptop.x, ptop.y, 2.5, 0, Math.PI * 2);
+          ctx.fill();
+
+          // Connect cables between towers
+          if (idx < cityFeatures.powerTowers.length - 1) {
+            const nextTower = cityFeatures.powerTowers[idx + 1];
+            const nextTop = toIso(nextTower.x, nextTower.y, nextTower.height);
+            ctx.strokeStyle = "rgba(234, 179, 8, 0.7)";
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(ptop.x - 14, ptop.y + 6);
+            ctx.quadraticCurveTo((ptop.x + nextTop.x) / 2, (ptop.y + nextTop.y) / 2 + 6, nextTop.x - 14, nextTop.y + 6);
+            ctx.stroke();
+          }
+        });
+      }
+
+      // 5. Connecting Surface Roads & Runway
       const lx = geoData.launch.x;
       const ly = geoData.launch.y;
       const dx = geoData.destination.x;
@@ -534,221 +722,131 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
       const pRoadStart = toIso(lx, ly, 0);
       const pRoadEnd = toIso(dx, dy, 0);
 
-      ctx.strokeStyle = "#64748b";
-      ctx.lineWidth = 14;
+      ctx.strokeStyle = "#475569";
+      ctx.lineWidth = 10;
       ctx.lineCap = "round";
       ctx.beginPath();
       ctx.moveTo(pRoadStart.x, pRoadStart.y);
       ctx.lineTo(pRoadEnd.x, pRoadEnd.y);
       ctx.stroke();
 
-      ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash([6, 6]);
+      ctx.strokeStyle = "#f8fafc";
+      ctx.lineWidth = 1.2;
+      ctx.setLineDash([4, 4]);
       ctx.beginPath();
       ctx.moveTo(pRoadStart.x, pRoadStart.y);
       ctx.lineTo(pRoadEnd.x, pRoadEnd.y);
       ctx.stroke();
       ctx.setLineDash([]);
 
-      // 3. Real Launch Pad (Origin)
+      // 6. Launch Origin Hub
       const pLaunchBase = toIso(lx, ly, 0);
-      const pLaunchTop = toIso(lx, ly, 15);
+      const pLaunchTop = toIso(lx, ly, 12);
 
-      // Launch Pad 3D Base
       ctx.fillStyle = "#0284c7";
       ctx.beginPath();
-      ctx.ellipse(pLaunchBase.x, pLaunchBase.y, 28, 16, 0, 0, Math.PI * 2);
+      ctx.ellipse(pLaunchBase.x, pLaunchBase.y, 22, 12, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-
-      // Launch Ring Pulse
-      const launchPulse = (Math.sin(t * 3) + 1) * 6;
-      ctx.strokeStyle = "rgba(2, 132, 199, 0.5)";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.ellipse(pLaunchBase.x, pLaunchBase.y, 28 + launchPulse, 16 + launchPulse * 0.5, 0, 0, Math.PI * 2);
+      ctx.lineWidth = 1.5;
       ctx.stroke();
 
       // Launch Label
       ctx.save();
-      ctx.font = "bold 9px JetBrains Mono, monospace";
-      ctx.fillStyle = "#0f172a";
-      const launchText = `🛫 TAKEOFF: ${geoData.launch.name.slice(0, 26)}`;
+      ctx.font = "bold 8.5px JetBrains Mono, monospace";
+      const launchText = `TAKEOFF: ${geoData.launch.name.slice(0, 22)}`;
       const lWidth = ctx.measureText(launchText).width;
-      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+      ctx.fillStyle = "#ffffff";
       ctx.strokeStyle = "#0284c7";
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.roundRect(pLaunchTop.x - lWidth / 2 - 6, pLaunchTop.y - 18, lWidth + 12, 18, 4);
+      ctx.roundRect(pLaunchTop.x - lWidth / 2 - 4, pLaunchTop.y - 14, lWidth + 8, 14, 3);
       ctx.fill();
       ctx.stroke();
-      ctx.fillStyle = "#0369a1";
+      ctx.fillStyle = "#0284c7";
       ctx.textAlign = "center";
-      ctx.fillText(launchText, pLaunchTop.x, pLaunchTop.y - 6);
+      ctx.fillText(launchText, pLaunchTop.x, pLaunchTop.y - 4);
       ctx.restore();
 
-      // 4. Real Destination Pad (Recovery Hub)
+      // 7. Destination Hub
       const pDestBase = toIso(dx, dy, 0);
-      const pDestTop = toIso(dx, dy, 15);
+      const pDestTop = toIso(dx, dy, 12);
 
       ctx.fillStyle = "#10b981";
       ctx.beginPath();
-      ctx.ellipse(pDestBase.x, pDestBase.y, 28, 16, 0, 0, Math.PI * 2);
+      ctx.ellipse(pDestBase.x, pDestBase.y, 22, 12, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.strokeStyle = "#ffffff";
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 1.5;
       ctx.stroke();
 
       // Dest Label
       ctx.save();
-      ctx.font = "bold 9px JetBrains Mono, monospace";
-      const destText = `🎯 RECOVERY: ${geoData.destination.name.slice(0, 26)}`;
+      ctx.font = "bold 8.5px JetBrains Mono, monospace";
+      const destText = `RECOVERY: ${geoData.destination.name.slice(0, 22)}`;
       const dWidth = ctx.measureText(destText).width;
-      ctx.fillStyle = "rgba(255, 255, 255, 0.95)";
+      ctx.fillStyle = "#ffffff";
       ctx.strokeStyle = "#10b981";
       ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.roundRect(pDestTop.x - dWidth / 2 - 6, pDestTop.y - 18, dWidth + 12, 18, 4);
+      ctx.roundRect(pDestTop.x - dWidth / 2 - 4, pDestTop.y - 14, dWidth + 8, 14, 3);
       ctx.fill();
       ctx.stroke();
       ctx.fillStyle = "#047857";
       ctx.textAlign = "center";
-      ctx.fillText(destText, pDestTop.x, pDestTop.y - 6);
+      ctx.fillText(destText, pDestTop.x, pDestTop.y - 4);
       ctx.restore();
 
-      // 5. Render Real Mireye Powerline Infrastructure & Hazards
-      if (showHazards && activeStage >= 3) {
-        if (geoData.obstacles.length > 0) {
-          geoData.obstacles.forEach((obs, idx) => {
-            const b = toIso(obs.worldX, obs.worldY, 0);
-            const top = toIso(obs.worldX, obs.worldY, 45);
-
-            // Steel Lattice Tower
-            ctx.strokeStyle = "#eab308";
-            ctx.lineWidth = 2.5;
-            ctx.beginPath();
-            ctx.moveTo(b.x - 10, b.y);
-            ctx.lineTo(top.x, top.y);
-            ctx.lineTo(b.x + 10, b.y);
-            ctx.stroke();
-
-            // Cross arms
-            ctx.beginPath();
-            ctx.moveTo(top.x - 20, top.y + 8);
-            ctx.lineTo(top.x + 20, top.y + 8);
-            ctx.moveTo(top.x - 14, top.y + 18);
-            ctx.lineTo(top.x + 14, top.y + 18);
-            ctx.stroke();
-
-            // Warning beacon
-            ctx.fillStyle = "#ef4444";
-            ctx.beginPath();
-            ctx.arc(top.x, top.y, 4, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Real Hazard Badge
-            ctx.save();
-            ctx.font = "bold 8px JetBrains Mono, monospace";
-            const obsText = `⚡ MIREYE: ${obs.obstacle_type.toUpperCase()} · ${obs.distance_m.toFixed(1)}m`;
-            const obsWidth = ctx.measureText(obsText).width;
-            ctx.fillStyle = "#fef3c7";
-            ctx.strokeStyle = "#f59e0b";
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.roundRect(top.x - obsWidth / 2 - 4, top.y - 16, obsWidth + 8, 15, 3);
-            ctx.fill();
-            ctx.stroke();
-            ctx.fillStyle = "#92400e";
-            ctx.textAlign = "center";
-            ctx.fillText(obsText, top.x, top.y - 6);
-            ctx.restore();
-          });
-        } else {
-          // If no critical hazards directly in buffer, show general grid baseline
-          const midX = (lx + dx) / 2 + 30;
-          const midY = (ly + dy) / 2 - 30;
-          const b = toIso(midX, midY, 0);
-          const top = toIso(midX, midY, 40);
-
-          ctx.strokeStyle = "#cbd5e1";
-          ctx.lineWidth = 2;
-          ctx.beginPath();
-          ctx.moveTo(b.x - 8, b.y);
-          ctx.lineTo(top.x, top.y);
-          ctx.lineTo(b.x + 8, b.y);
-          ctx.stroke();
-        }
-      }
-
-      // 6. Render Real Emergency Landing Zones
+      // 8. Real Emergency Landing Zones
       if (showLandingPads) {
         geoData.landingZones.forEach((lz, idx) => {
           const lzPt = toIso(lz.worldX, lz.worldY, 0);
           ctx.strokeStyle = "#10b981";
           ctx.fillStyle = "rgba(16, 185, 129, 0.25)";
-          ctx.lineWidth = 2;
+          ctx.lineWidth = 1.5;
           ctx.beginPath();
-          ctx.ellipse(lzPt.x, lzPt.y, 20, 10, 0, 0, Math.PI * 2);
+          ctx.ellipse(lzPt.x, lzPt.y, 16, 8, 0, 0, Math.PI * 2);
           ctx.fill();
           ctx.stroke();
 
           ctx.fillStyle = "#047857";
-          ctx.font = "bold 8px JetBrains Mono, monospace";
+          ctx.font = "bold 7.5px JetBrains Mono, monospace";
           ctx.textAlign = "center";
-          ctx.fillText(`🛬 LZ-0${idx + 1} (${lz.infrastructure_clearance_m.toFixed(1)}m)`, lzPt.x, lzPt.y + 2);
+          ctx.fillText(`LZ-0${idx + 1} (${lz.infrastructure_clearance_m.toFixed(0)}m)`, lzPt.x, lzPt.y + 2);
         });
       }
 
-      // 7. Render Real FAA Airspace Ceiling (400ft AGL)
+      // 9. FAA Airspace Ceiling (400ft AGL)
       if (showAirspace && activeStage >= 4) {
         const midAirX = (lx + dx) / 2;
         const midAirY = (ly + dy) / 2;
-        const airCeiling = toIso(midAirX, midAirY, 65);
+        const airCeiling = toIso(midAirX, midAirY, 60);
 
-        ctx.fillStyle = "rgba(6, 182, 212, 0.1)";
-        ctx.strokeStyle = "rgba(6, 182, 212, 0.5)";
-        ctx.lineWidth = 1.5;
+        ctx.fillStyle = "rgba(2, 132, 199, 0.05)";
+        ctx.strokeStyle = "rgba(2, 132, 199, 0.4)";
+        ctx.lineWidth = 1;
+        ctx.setLineDash([4, 4]);
         ctx.beginPath();
-        ctx.ellipse(airCeiling.x, airCeiling.y, 110, 55, 0, 0, Math.PI * 2);
+        ctx.ellipse(airCeiling.x, airCeiling.y, 100, 50, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
+        ctx.setLineDash([]);
 
         ctx.save();
-        ctx.font = "bold 9px JetBrains Mono, monospace";
-        ctx.fillStyle = "#0e7490";
+        ctx.font = "bold 8px JetBrains Mono, monospace";
+        ctx.fillStyle = "#0369a1";
         ctx.textAlign = "center";
-        ctx.fillText("🛡️ FAA UASFM CEILING · 400ft AGL", airCeiling.x, airCeiling.y - 10);
+        ctx.fillText("FAA UASFM CEILING · 400 FT AGL", airCeiling.x, airCeiling.y - 8);
         ctx.restore();
       }
 
-      // 8. Render Real NOAA Wind Flow Streamlines
-      if (showWind && activeStage >= 6) {
-        ctx.strokeStyle = "rgba(14, 165, 233, 0.4)";
-        ctx.lineWidth = 1.5;
-        for (let i = 0; i < 6; i++) {
-          const windP = (t * 0.3 + i * 0.15) % 1.0;
-          const wx = -220 + windP * 440;
-          const wy = -150 + i * 50;
-          const pW1 = toIso(wx, wy, 70);
-          const pW2 = toIso(wx + 30, wy + 15, 70);
-
-          ctx.beginPath();
-          ctx.moveTo(pW1.x, pW1.y);
-          ctx.lineTo(pW2.x, pW2.y);
-          ctx.stroke();
-        }
-      }
-
-      // 9. Render Real Candidate Corridors
+      // 10. Flight Corridors
       if (showCorridors && activeStage >= 2) {
-        // Draw Corridor Beta (Alternative)
+        // Alternative Corridor Beta (Dashed Gray)
         if (geoData.corridorB.length > 1) {
           ctx.strokeStyle = selectedCorridorId === "corridor_b" ? "#0284c7" : "#94a3b8";
-          ctx.lineWidth = selectedCorridorId === "corridor_b" ? 4 : 2;
-          ctx.setLineDash([5, 5]);
+          ctx.lineWidth = selectedCorridorId === "corridor_b" ? 3 : 1.5;
+          ctx.setLineDash([4, 4]);
           ctx.beginPath();
           const p0 = toIso(geoData.corridorB[0].x, geoData.corridorB[0].y, geoData.corridorB[0].z);
           ctx.moveTo(p0.x, p0.y);
@@ -757,13 +855,14 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
             ctx.lineTo(pt.x, pt.y);
           }
           ctx.stroke();
+          ctx.setLineDash([]);
         }
 
-        // Draw Corridor Gamma (Alternative)
+        // Alternative Corridor Gamma (Dashed Gray)
         if (geoData.corridorC.length > 1) {
           ctx.strokeStyle = selectedCorridorId === "corridor_c" ? "#0284c7" : "#94a3b8";
-          ctx.lineWidth = selectedCorridorId === "corridor_c" ? 4 : 2;
-          ctx.setLineDash([5, 5]);
+          ctx.lineWidth = selectedCorridorId === "corridor_c" ? 3 : 1.5;
+          ctx.setLineDash([4, 4]);
           ctx.beginPath();
           const p0 = toIso(geoData.corridorC[0].x, geoData.corridorC[0].y, geoData.corridorC[0].z);
           ctx.moveTo(p0.x, p0.y);
@@ -775,84 +874,73 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
           ctx.setLineDash([]);
         }
 
-        // Draw Corridor Alpha (Recommended)
+        // Recommended Corridor Alpha (Solid Airlane Blue with Glow)
         if (geoData.corridorA.length > 1) {
-          ctx.strokeStyle = selectedCorridorId === "corridor_a" ? "#0284c7" : "#94a3b8";
-          ctx.lineWidth = selectedCorridorId === "corridor_a" ? 5 : 2.5;
+          // Glow layer
+          ctx.strokeStyle = "rgba(2, 132, 199, 0.25)";
+          ctx.lineWidth = 8;
           ctx.lineCap = "round";
           ctx.lineJoin = "round";
-
-          if (selectedCorridorId === "corridor_a") {
-            ctx.shadowColor = "rgba(2, 132, 199, 0.4)";
-            ctx.shadowBlur = 10;
-          }
-
           ctx.beginPath();
-          const p0 = toIso(geoData.corridorA[0].x, geoData.corridorA[0].y, geoData.corridorA[0].z);
-          ctx.moveTo(p0.x, p0.y);
+          const p0Glow = toIso(geoData.corridorA[0].x, geoData.corridorA[0].y, geoData.corridorA[0].z);
+          ctx.moveTo(p0Glow.x, p0Glow.y);
           for (let i = 1; i < geoData.corridorA.length; i++) {
             const pt = toIso(geoData.corridorA[i].x, geoData.corridorA[i].y, geoData.corridorA[i].z);
             ctx.lineTo(pt.x, pt.y);
           }
           ctx.stroke();
-          ctx.shadowBlur = 0;
 
-          // Real Waypoint Nodes along Corridor Alpha
+          // Main solid corridor line
+          ctx.strokeStyle = "#0284c7";
+          ctx.lineWidth = 3.5;
+          ctx.beginPath();
+          ctx.moveTo(p0Glow.x, p0Glow.y);
+          for (let i = 1; i < geoData.corridorA.length; i++) {
+            const pt = toIso(geoData.corridorA[i].x, geoData.corridorA[i].y, geoData.corridorA[i].z);
+            ctx.lineTo(pt.x, pt.y);
+          }
+          ctx.stroke();
+
+          // Waypoints
           geoData.corridorA.forEach((wp, idx) => {
             const pt = toIso(wp.x, wp.y, wp.z);
             ctx.fillStyle = idx === 0 ? "#0284c7" : idx === geoData.corridorA.length - 1 ? "#10b981" : "#ffffff";
             ctx.strokeStyle = "#0284c7";
             ctx.lineWidth = 1.5;
             ctx.beginPath();
-            ctx.arc(pt.x, pt.y, 3.5, 0, Math.PI * 2);
+            ctx.arc(pt.x, pt.y, 3, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
           });
         }
       }
 
-      // 10. Render Autonomous Drone Flying Along REAL GPS Waypoints
-      const activePoints =
-        selectedCorridorId === "corridor_b"
-          ? geoData.corridorB
-          : selectedCorridorId === "corridor_c"
-          ? geoData.corridorC
-          : geoData.corridorA;
-
-      if (activePoints.length > 1) {
-        const totalSegs = activePoints.length - 1;
-        const scaled = progress * totalSegs;
+      // 11. MULTI-DRONE AUTONOMOUS VISUALIZATION
+      // DRONE 1: Primary Corridor Drone
+      if (geoData.corridorA.length > 1) {
+        const progress1 = drone1ProgressRef.current;
+        const totalSegs = geoData.corridorA.length - 1;
+        const scaled = progress1 * totalSegs;
         const idx = Math.min(Math.floor(scaled), totalSegs - 1);
         const segT = scaled - idx;
 
-        const p0 = activePoints[idx];
-        const p1 = activePoints[idx + 1];
+        const p0 = geoData.corridorA[idx];
+        const p1 = geoData.corridorA[idx + 1];
 
         const curX = p0.x + (p1.x - p0.x) * segT;
         const curY = p0.y + (p1.y - p0.y) * segT;
-        const curZ = p0.z + (p1.z - p0.z) * segT + Math.sin(t * 6) * 1.5;
-
-        const curLat = p0.lat + (p1.lat - p0.lat) * segT;
-        const curLng = p0.lng + (p1.lng - p0.lng) * segT;
+        const curZ = p0.z + (p1.z - p0.z) * segT + Math.sin(t * 5) * 1.5;
 
         const droneScreen = toIso(curX, curY, curZ);
         const droneGround = toIso(curX, curY, 0);
 
-        if (cameraMode === "drone") {
-          setPan({
-            x: -droneScreen.x,
-            y: -droneScreen.y,
-          });
-        }
-
-        // Ground shadow
-        ctx.fillStyle = "rgba(15, 23, 42, 0.15)";
+        // Ground shadow & altitude tether
+        ctx.fillStyle = "rgba(15, 23, 42, 0.12)";
         ctx.beginPath();
-        ctx.ellipse(droneGround.x, droneGround.y, 10, 5, 0, 0, Math.PI * 2);
+        ctx.ellipse(droneGround.x, droneGround.y, 8, 4, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Altitude tether
-        ctx.strokeStyle = "rgba(2, 132, 199, 0.35)";
+        ctx.strokeStyle = "rgba(2, 132, 199, 0.3)";
         ctx.lineWidth = 1;
         ctx.setLineDash([2, 2]);
         ctx.beginPath();
@@ -861,63 +949,125 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
         ctx.stroke();
         ctx.setLineDash([]);
 
-        // Quad Arms
-        ctx.strokeStyle = "#334155";
-        ctx.lineWidth = 2;
-        const arm = 11;
-        const arms = [
-          { dx: -arm, dy: -arm * 0.5 },
-          { dx: arm, dy: -arm * 0.5 },
-          { dx: arm, dy: arm * 0.5 },
-          { dx: -arm, dy: arm * 0.5 },
-        ];
+        // Drone Quad Arms & Rotors
+        ctx.strokeStyle = "#1e293b";
+        ctx.lineWidth = 1.8;
+        const arm = 9;
+        [-arm, arm].forEach((dxArm) => {
+          [-arm * 0.5, arm * 0.5].forEach((dyArm) => {
+            ctx.beginPath();
+            ctx.moveTo(droneScreen.x, droneScreen.y);
+            ctx.lineTo(droneScreen.x + dxArm, droneScreen.y + dyArm);
+            ctx.stroke();
 
-        arms.forEach((a) => {
-          ctx.beginPath();
-          ctx.moveTo(droneScreen.x, droneScreen.y);
-          ctx.lineTo(droneScreen.x + a.dx, droneScreen.y + a.dy);
-          ctx.stroke();
-
-          // Spinning rotor
-          ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
-          ctx.strokeStyle = "#0284c7";
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.ellipse(droneScreen.x + a.dx, droneScreen.y + a.dy, 6, 2.5, 0, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.stroke();
+            ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+            ctx.strokeStyle = "#0284c7";
+            ctx.lineWidth = 0.8;
+            ctx.beginPath();
+            ctx.ellipse(droneScreen.x + dxArm, droneScreen.y + dyArm, 4.5, 2, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          });
         });
 
-        // Drone Body
-        ctx.fillStyle = "#facc15";
-        ctx.strokeStyle = "#ca8a04";
-        ctx.lineWidth = 1.5;
+        // Drone Core Body
+        ctx.fillStyle = "#0284c7";
+        ctx.strokeStyle = "#0369a1";
+        ctx.lineWidth = 1.2;
         ctx.beginPath();
-        ctx.ellipse(droneScreen.x, droneScreen.y, 7, 4.5, 0, 0, Math.PI * 2);
+        ctx.ellipse(droneScreen.x, droneScreen.y, 5.5, 3.5, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
 
-        // Real Telemetry HUD Card floating above drone
+        // Drone Telemetry Label
         ctx.save();
-        const hudY = droneScreen.y - 24;
-        ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
+        const hudY = droneScreen.y - 18;
+        ctx.fillStyle = "rgba(15, 23, 42, 0.88)";
         ctx.strokeStyle = "#0284c7";
-        ctx.lineWidth = 1;
+        ctx.lineWidth = 0.8;
         ctx.beginPath();
-        ctx.roundRect(droneScreen.x - 65, hudY - 14, 130, 20, 4);
+        ctx.roundRect(droneScreen.x - 45, hudY - 11, 90, 15, 3);
         ctx.fill();
         ctx.stroke();
 
         ctx.fillStyle = "#ffffff";
-        ctx.font = "bold 8px JetBrains Mono, monospace";
+        ctx.font = "bold 7.5px JetBrains Mono, monospace";
         ctx.textAlign = "center";
-        ctx.fillText(
-          `ALT: ${geoData.cruiseAltFt}ft · ${curLat.toFixed(4)}°, ${curLng.toFixed(4)}°`,
-          droneScreen.x,
-          hudY
-        );
+        ctx.fillText(`AIRLANE · ${geoData.cruiseAltFt}FT AGL`, droneScreen.x, hudY - 1);
         ctx.restore();
       }
+
+      // DRONE 2: Alternative Route Scout (Amber / Detour Patrol)
+      if (geoData.corridorB.length > 1) {
+        const progress2 = drone2ProgressRef.current;
+        const totalSegs = geoData.corridorB.length - 1;
+        const scaled = progress2 * totalSegs;
+        const idx = Math.min(Math.floor(scaled), totalSegs - 1);
+        const segT = scaled - idx;
+
+        const p0 = geoData.corridorB[idx];
+        const p1 = geoData.corridorB[idx + 1];
+
+        const curX = p0.x + (p1.x - p0.x) * segT;
+        const curY = p0.y + (p1.y - p0.y) * segT;
+        const curZ = p0.z + (p1.z - p0.z) * segT;
+
+        const droneScreen = toIso(curX, curY, curZ);
+
+        ctx.fillStyle = "#64748b";
+        ctx.beginPath();
+        ctx.ellipse(droneScreen.x, droneScreen.y, 4, 2.5, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // DRONE 3: Dynamic Obstacle Avoidance Demonstration
+      // Smoothly approaches 345kV Tower hazard, detects risk, arcs around safely
+      const d3T = (t * 0.15) % 1.0;
+      const startX = -130;
+      const startY = 60;
+      const targetX = 80;
+      const targetY = -40;
+
+      // Hazard center at (-20, 0)
+      const hazardX = -20;
+      const hazardY = 0;
+      const linearX = startX + (targetX - startX) * d3T;
+      const linearY = startY + (targetY - startY) * d3T;
+
+      // Calculate distance to hazard and dynamic repulsive detour
+      const distToHazard = Math.hypot(linearX - hazardX, linearY - hazardY);
+      const isAvoiding = distToHazard < 65;
+      const detourOffset = isAvoiding ? (1 - distToHazard / 65) * 32 : 0;
+
+      const d3X = linearX;
+      const d3Y = linearY - detourOffset;
+      const d3Z = 35 + Math.sin(t * 4) * 1.2;
+
+      const pD3 = toIso(d3X, d3Y, d3Z);
+      const pD3Ground = toIso(d3X, d3Y, 0);
+
+      // Radar ping when actively avoiding hazard
+      if (isAvoiding) {
+        const pingRadius = (t * 20) % 25;
+        ctx.strokeStyle = "rgba(239, 68, 68, 0.6)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.ellipse(pD3.x, pD3.y, pingRadius, pingRadius * 0.5, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        ctx.save();
+        ctx.font = "bold 7px JetBrains Mono, monospace";
+        ctx.fillStyle = "#ef4444";
+        ctx.textAlign = "center";
+        ctx.fillText("HAZARD AVOIDANCE VECTOR", pD3.x, pD3.y - 12);
+        ctx.restore();
+      }
+
+      // Drone 3 body
+      ctx.fillStyle = isAvoiding ? "#ef4444" : "#10b981";
+      ctx.beginPath();
+      ctx.ellipse(pD3.x, pD3.y, 4.5, 2.8, 0, 0, Math.PI * 2);
+      ctx.fill();
 
       ctx.restore();
       animationFrameId = requestAnimationFrame(render);
@@ -927,6 +1077,7 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
     return () => cancelAnimationFrame(animationFrameId);
   }, [
     geoData,
+    cityFeatures,
     zoom,
     pan,
     cameraMode,
@@ -934,8 +1085,6 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
     selectedCorridorId,
     showAirspace,
     showHazards,
-    showPopulation,
-    showWind,
     showLandingPads,
     showCorridors,
     simSpeed,
@@ -943,85 +1092,64 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
   ]);
 
   return (
-    <div className="relative w-full h-[520px] lg:h-[620px] rounded-2xl overflow-hidden border border-slate-200 shadow-xl bg-gradient-to-b from-sky-50 to-slate-50 select-none">
+    <div
+      className={`relative w-full ${
+        isHeroBackground ? "h-[460px] lg:h-[540px]" : "h-[480px] lg:h-[580px]"
+      } rounded-lg overflow-hidden border border-slate-200 shadow-xs bg-[#fbfbfa] select-none`}
+    >
       {/* Top Controls Bar */}
-      <div className="absolute top-4 left-4 right-4 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+      <div className="absolute top-3 left-3 right-3 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
         <div className="flex items-center gap-2 pointer-events-auto">
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-sm text-xs font-semibold text-slate-800">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-white/95 backdrop-blur-md border border-slate-200 text-xs font-semibold text-slate-800 shadow-xs">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>3D Geospatial Digital Twin</span>
-            <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 font-bold">
-              100% Real Backend Data
+            <span className="font-mono text-[11px]">3D Digital Twin</span>
+            <span className="text-[9px] uppercase font-mono px-1 py-0.2 rounded bg-slate-100 text-slate-600 border border-slate-200">
+              Live Systems
             </span>
           </div>
 
-          <div className="flex items-center rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-sm p-0.5 text-xs">
+          <div className="flex items-center rounded-md bg-white/95 backdrop-blur-md border border-slate-200 p-0.5 text-xs shadow-xs">
             <button
               onClick={() => setCameraMode("isometric")}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                cameraMode === "isometric" ? "bg-sky-500 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+              className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
+                cameraMode === "isometric" ? "bg-sky-600 text-white font-semibold" : "text-slate-600 hover:text-slate-900"
               }`}
             >
-              Isometric 3D
+              Isometric
             </button>
             <button
               onClick={() => setCameraMode("topdown")}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                cameraMode === "topdown" ? "bg-sky-500 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+              className={`px-2 py-0.5 rounded text-[11px] font-medium transition-colors ${
+                cameraMode === "topdown" ? "bg-sky-600 text-white font-semibold" : "text-slate-600 hover:text-slate-900"
               }`}
             >
               Top-Down
-            </button>
-            <button
-              onClick={() => setCameraMode("drone")}
-              className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
-                cameraMode === "drone" ? "bg-sky-500 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              Drone Cam
             </button>
           </div>
         </div>
 
         <div className="flex items-center gap-2 pointer-events-auto">
-          <div className="flex items-center gap-1 px-2 py-1 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-sm text-xs">
-            <button
-              onClick={() => setIsPlaying(!isPlaying)}
-              className="p-1 rounded text-slate-600 hover:text-slate-900"
-              title={isPlaying ? "Pause Simulation" : "Play Simulation"}
-            >
-              {isPlaying ? "⏸️" : "▶️"}
-            </button>
-            <button
-              onClick={() => setSimSpeed((s) => (s === 1.0 ? 2.0 : s === 2.0 ? 4.0 : 1.0))}
-              className="px-1.5 py-0.5 font-mono text-[11px] font-bold text-sky-600 hover:bg-sky-50 rounded"
-              title="Simulation Speed"
-            >
-              {simSpeed}x
-            </button>
-          </div>
-
-          <div className="flex items-center rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-sm p-0.5 text-xs">
+          <div className="flex items-center rounded-md bg-white/95 backdrop-blur-md border border-slate-200 p-0.5 text-xs shadow-xs">
             <button
               onClick={() => setZoom((z) => Math.min(2.5, z * 1.15))}
-              className="px-2 py-1 text-slate-600 hover:text-slate-900 font-bold"
+              className="px-2 py-0.5 text-slate-600 hover:text-slate-900 font-bold"
               title="Zoom In"
             >
               +
             </button>
             <button
               onClick={() => setZoom((z) => Math.max(0.5, z * 0.85))}
-              className="px-2 py-1 text-slate-600 hover:text-slate-900 font-bold"
+              className="px-2 py-0.5 text-slate-600 hover:text-slate-900 font-bold"
               title="Zoom Out"
             >
               −
             </button>
             <button
               onClick={handleResetView}
-              className="px-2 py-1 text-slate-600 hover:text-slate-900 text-[11px]"
+              className="px-2 py-0.5 text-slate-500 hover:text-slate-900 text-[10px] font-mono"
               title="Reset Camera"
             >
-              Reset
+              RESET
             </button>
           </div>
         </div>
@@ -1041,59 +1169,57 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
       {/* Floating Hover Tooltip */}
       {hoveredItem && (
         <div
-          className="absolute z-30 pointer-events-none px-3 py-1.5 rounded-lg bg-slate-900/90 text-white text-xs font-semibold shadow-lg backdrop-blur-md border border-slate-700"
+          className="absolute z-30 pointer-events-none px-2.5 py-1 rounded bg-slate-900 text-white text-[11px] font-mono shadow-md border border-slate-700"
           style={{
-            left: `${hoveredItem.x + 12}px`,
-            top: `${hoveredItem.y - 30}px`,
+            left: `${hoveredItem.x + 10}px`,
+            top: `${hoveredItem.y - 28}px`,
           }}
         >
           {hoveredItem.text}
-          <div className="text-[10px] text-sky-300 font-normal mt-0.5">Click for real technical inspection</div>
         </div>
       )}
 
-      {/* Bottom Layer Toggles Pill Bar */}
-      <div className="absolute bottom-4 left-4 right-4 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
-        <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-sm pointer-events-auto">
+      {/* Bottom Layer Toggles */}
+      <div className="absolute bottom-3 left-3 right-3 z-20 flex flex-wrap items-center justify-between gap-2 pointer-events-none">
+        <div className="flex flex-wrap items-center gap-1 p-0.5 rounded-md bg-white/95 backdrop-blur-md border border-slate-200 shadow-xs pointer-events-auto text-[11px] font-mono">
           <button
             onClick={() => setShowAirspace(!showAirspace)}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-              showAirspace ? "bg-cyan-50 text-cyan-700 border border-cyan-200 font-semibold" : "text-slate-400 hover:text-slate-600"
+            className={`px-2 py-0.5 rounded transition-colors ${
+              showAirspace ? "bg-sky-50 text-sky-800 border border-sky-200 font-semibold" : "text-slate-400 hover:text-slate-600"
             }`}
           >
-            🛡️ FAA Airspace (400ft)
+            FAA 400FT
           </button>
           <button
             onClick={() => setShowHazards(!showHazards)}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-              showHazards ? "bg-amber-50 text-amber-700 border border-amber-200 font-semibold" : "text-slate-400 hover:text-slate-600"
+            className={`px-2 py-0.5 rounded transition-colors ${
+              showHazards ? "bg-amber-50 text-amber-800 border border-amber-200 font-semibold" : "text-slate-400 hover:text-slate-600"
             }`}
           >
-            ⚡ Mireye 345kV Grid
+            345kV GRID
           </button>
           <button
             onClick={() => setShowLandingPads(!showLandingPads)}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-              showLandingPads ? "bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold" : "text-slate-400 hover:text-slate-600"
+            className={`px-2 py-0.5 rounded transition-colors ${
+              showLandingPads ? "bg-emerald-50 text-emerald-800 border border-emerald-200 font-semibold" : "text-slate-400 hover:text-slate-600"
             }`}
           >
-            🛬 Safe Landing Pads
+            LANDING PADS
           </button>
           <button
             onClick={() => setShowCorridors(!showCorridors)}
-            className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${
-              showCorridors ? "bg-sky-50 text-sky-700 border border-sky-200 font-semibold" : "text-slate-400 hover:text-slate-600"
+            className={`px-2 py-0.5 rounded transition-colors ${
+              showCorridors ? "bg-sky-50 text-sky-800 border border-sky-200 font-semibold" : "text-slate-400 hover:text-slate-600"
             }`}
           >
-            🛣️ Real GPS Corridors
+            GPS CORRIDORS
           </button>
         </div>
 
-        {/* Live GPS Footer */}
-        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/80 shadow-sm text-xs font-mono text-slate-600 pointer-events-auto">
-          <span>Center: {geoData.launch.lat.toFixed(4)}°N</span>
-          <span>•</span>
-          <span>{geoData.launch.lng.toFixed(4)}°W</span>
+        <div className="hidden sm:flex items-center gap-2 px-2.5 py-1 rounded-md bg-white/95 backdrop-blur-md border border-slate-200 text-[10px] font-mono text-slate-500 shadow-xs pointer-events-auto">
+          <span>LAT: {geoData.launch.lat.toFixed(4)}° N</span>
+          <span>·</span>
+          <span>LNG: {geoData.launch.lng.toFixed(4)}° W</span>
         </div>
       </div>
     </div>

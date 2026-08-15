@@ -4,7 +4,6 @@ interface HeaderProps {
   serverStatus: "checking" | "online" | "offline";
   onReset?: () => void;
   activeView: "input" | "executing" | "results";
-  onTabChange?: (tab: string) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -13,17 +12,17 @@ export const Header: React.FC<HeaderProps> = ({
   activeView,
 }) => {
   return (
-    <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-8 py-3.5 flex items-center justify-between shadow-xs">
+    <header className="sticky top-0 z-40 bg-[#fbfbfa]/95 backdrop-blur-md border-b border-slate-200/90 px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between">
       {/* Brand & Logo */}
       <div className="flex items-center gap-3">
         <div
           onClick={onReset}
-          className="flex items-center gap-2.5 cursor-pointer group"
+          className="flex items-center gap-2.5 cursor-pointer group select-none"
         >
-          {/* Custom Silicon Valley Style Drone Icon */}
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-600 to-cyan-500 flex items-center justify-center text-white shadow-md shadow-sky-500/20 group-hover:scale-105 transition-transform">
+          {/* Silicon Valley Drone Navigation Icon */}
+          <div className="w-8 h-8 rounded-lg bg-sky-600 flex items-center justify-center text-white shadow-xs group-hover:bg-sky-700 transition-colors">
             <svg
-              className="w-5 h-5"
+              className="w-4 h-4"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -32,65 +31,42 @@ export const Header: React.FC<HeaderProps> = ({
               strokeLinejoin="round"
             >
               <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-              <circle cx="12" cy="12" r="3" fill="white" />
+              <circle cx="12" cy="12" r="2.5" fill="white" />
             </svg>
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xl font-black text-slate-900 tracking-tight font-display">
+              <span className="text-base font-bold text-slate-900 tracking-tight font-display">
                 Airlane
               </span>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-sky-50 text-sky-600 border border-sky-200">
-                Silicon Valley Ed.
+              <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                BVLOS v1.0
               </span>
             </div>
-            <p className="text-[11px] font-medium text-slate-500 hidden sm:block">
-              Autonomous Flight Corridors & Part 108 Digital Twin
+            <p className="text-[10px] text-slate-500 hidden sm:block font-mono">
+              Autonomous Flight Corridors · FAA Part 108 Digital Twin
             </p>
           </div>
         </div>
       </div>
 
-      {/* Center Navigation Links (Minimal Silicon Valley style) */}
-      <nav className="hidden md:flex items-center gap-1 bg-slate-100/80 p-1 rounded-xl border border-slate-200/60 text-xs font-semibold text-slate-600">
-        <button
-          onClick={onReset}
-          className={`px-3 py-1.5 rounded-lg transition-all ${
-            activeView === "input"
-              ? "bg-white text-sky-600 shadow-xs font-bold"
-              : "hover:text-slate-900"
-          }`}
-        >
-          Plan Route
-        </button>
-        <button
-          onClick={() => {}}
-          className={`px-3 py-1.5 rounded-lg transition-all ${
-            activeView === "results"
-              ? "bg-white text-sky-600 shadow-xs font-bold"
-              : "hover:text-slate-900"
-          }`}
-        >
-          Corridor Digital Twin
-        </button>
-        <button
-          onClick={() => {}}
-          className="px-3 py-1.5 rounded-lg hover:text-slate-900 transition-all text-slate-500"
-        >
-          Intelligence Layers
-        </button>
-        <button
-          onClick={() => {}}
-          className="px-3 py-1.5 rounded-lg hover:text-slate-900 transition-all text-slate-500"
-        >
-          Settings
-        </button>
-      </nav>
+      {/* Center Status: Coordinate Readout & Mode */}
+      <div className="hidden lg:flex items-center gap-4 text-xs font-mono text-slate-500">
+        <div className="flex items-center gap-1.5">
+          <span className="text-slate-400">BAY AREA SECTOR:</span>
+          <span className="font-semibold text-slate-700">37.42° N, 122.10° W</span>
+        </div>
+        <span className="text-slate-300">|</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-slate-400">AIRSPACE:</span>
+          <span className="font-semibold text-slate-700">FAA CLASS D & G (400 FT AGL)</span>
+        </div>
+      </div>
 
-      {/* Right Controls: Engine Status & New Mission CTA */}
-      <div className="flex items-center gap-3">
+      {/* Right Controls: Engine Status & Action */}
+      <div className="flex items-center gap-2.5">
         {/* Backend status indicator */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200/80 text-xs font-medium text-slate-700 shadow-xs">
+        <div className="flex items-center gap-2 px-2.5 py-1 rounded-md bg-white border border-slate-200 text-xs text-slate-700 shadow-xs">
           <span
             className={`w-2 h-2 rounded-full ${
               serverStatus === "online"
@@ -102,32 +78,20 @@ export const Header: React.FC<HeaderProps> = ({
           />
           <span className="font-mono text-[11px]">
             {serverStatus === "online"
-              ? "Engine Active (FastAPI)"
+              ? "Engine Active"
               : serverStatus === "checking"
               ? "Connecting..."
-              : "Simulation Ready"}
+              : "Sim Engine"}
           </span>
         </div>
 
         {activeView === "results" && (
           <button
             onClick={onReset}
-            className="px-3.5 py-1.5 text-xs font-bold text-white bg-sky-600 hover:bg-sky-700 shadow-sm shadow-sky-600/20 rounded-xl transition-all flex items-center gap-1.5 active:scale-95"
+            className="px-3 py-1 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 rounded-md transition-colors flex items-center gap-1.5 cursor-pointer"
           >
-            <svg
-              className="w-3.5 h-3.5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
-            <span>New Route</span>
+            <span>New Mission</span>
+            <span>→</span>
           </button>
         )}
       </div>

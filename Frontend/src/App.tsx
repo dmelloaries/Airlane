@@ -3,14 +3,9 @@ import { Header } from "./components/Header";
 import { MissionPlanner } from "./components/MissionPlanner";
 import { LiveAnalysisOverlay } from "./components/LiveAnalysisOverlay";
 import { VerdictDashboard } from "./components/VerdictDashboard";
-import {
-  InteractiveHazardModal,
-} from "./components/InteractiveHazardModal";
+import { InteractiveHazardModal } from "./components/InteractiveHazardModal";
 import type { SelectedObjectInfo } from "./components/MiniatureCityCanvas";
-import {
-  checkHealth,
-  streamAnalysis,
-} from "./services/api";
+import { checkHealth, streamAnalysis } from "./services/api";
 import type {
   AnalysisResult,
   MissionInputPayload,
@@ -253,7 +248,7 @@ const generateMockSiliconValleyResult = (payload: MissionInputPayload): Analysis
         { id: "corridor_c", name: "Corridor Gamma", reason: "Traverses higher density census tract near municipal boundary." },
       ],
       flagged_risks: [
-        "⚡ 345kV Transmission Line (Mireye Earth API): 68.3m clearance maintained via lateral detour.",
+        "345kV Transmission Line (Mireye Earth API): 68.3m clearance maintained via lateral detour.",
       ],
       landing_zones_summary: "1 primary emergency landing zone verified with >18m clearance and 3.2° slope.",
       caveats: [
@@ -339,10 +334,10 @@ export default function App() {
     const steps: Array<{ step: TraceEvent["step"]; msg: string }> = [
       { step: "geocoding", msg: `Resolved "${payload.launch}" → 37.4172° N, 122.1084° W` },
       { step: "corridor_generation", msg: "Generated 3 candidate flight corridors (Direct, Right 600m, Left 600m)" },
-      { step: "mireye_hazards", msg: "Fetched Mireye Earth API: 345kV transmission line detected. Direct path conflict mitigated." },
-      { step: "faa_airspace", msg: "Fetched FAA UASFM: Class D surface airspace ceiling active at 400ft AGL." },
-      { step: "population_density", msg: "Fetched Census Block Groups: Dominant Tier 1 ground risk (<250 people/sq mi)." },
-      { step: "noaa_wind", msg: "Fetched NOAA METAR: Wind 8 kts NW, gusts 12 kts (Safe for Small UAV envelope)." },
+      { step: "mireye_hazards", msg: "Mireye Earth API: 345kV transmission line detected. Direct path conflict mitigated." },
+      { step: "faa_airspace", msg: "FAA UASFM: Class D surface airspace ceiling active at 400ft AGL." },
+      { step: "population_density", msg: "Census Block Groups: Dominant Tier 1 ground risk (<250 people/sq mi)." },
+      { step: "noaa_wind", msg: "NOAA METAR: Wind 8 kts NW, gusts 12 kts (Safe for Small UAV envelope)." },
       { step: "compute_engine", msg: "Scoring completed. Emergency landing zone LZ-01 identified with 18.7m clearance." },
       { step: "reasoning_layer", msg: "Safety Case compiled: Corridor Alpha recommended (Part 108 Tier 1, 92% Confidence)." },
     ];
@@ -370,7 +365,7 @@ export default function App() {
           setActiveView("results");
         }, 500);
       }
-    }, 700);
+    }, 600);
 
     setCancelStream(() => () => clearInterval(interval));
   };
@@ -395,7 +390,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans selection:bg-sky-100 selection:text-sky-900">
+    <div className="min-h-screen bg-[#fbfbfa] text-slate-900 flex flex-col font-sans selection:bg-sky-100 selection:text-sky-900 bg-aviation-grid">
       <Header
         serverStatus={serverStatus}
         onReset={handleReset}
@@ -404,16 +399,16 @@ export default function App() {
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8">
         {errorMessage && (
-          <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm flex items-center justify-between shadow-xs">
+          <div className="mb-5 p-3.5 rounded-md bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center justify-between shadow-xs font-mono">
             <div className="flex items-center gap-2">
               <span>⚠️</span>
               <span>{errorMessage}</span>
             </div>
             <button
               onClick={() => setErrorMessage(null)}
-              className="text-xs font-bold text-rose-600 hover:text-rose-800 px-2 py-1"
+              className="text-[10px] font-bold text-rose-600 hover:text-rose-800 px-2 py-0.5"
             >
-              Dismiss
+              DISMISS
             </button>
           </div>
         )}
@@ -453,8 +448,8 @@ export default function App() {
         onClose={() => setInspectedObject(null)}
       />
 
-      <footer className="border-t border-slate-200/80 bg-white py-6 px-4 text-center text-xs text-slate-500 font-mono">
-        Airlane BVLOS Autonomous Navigation Engine • Silicon Valley Miniature Digital Twin • FAA Part 108 Verified
+      <footer className="border-t border-slate-200 bg-white/80 py-4 px-4 text-center text-xs text-slate-500 font-mono">
+        Airlane BVLOS Autonomous Navigation Engine · Silicon Valley Miniature Digital Twin · FAA Part 108 Compliant
       </footer>
     </div>
   );
