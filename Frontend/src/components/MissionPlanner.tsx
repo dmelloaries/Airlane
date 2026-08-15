@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 import type { MissionInputPayload } from "../types/airlane";
-import { MiniatureCityCanvas, type SelectedObjectInfo } from "./MiniatureCityCanvas";
+import {
+  MiniatureCityCanvas,
+  type SelectedObjectInfo,
+} from "./MiniatureCityCanvas";
 
 interface MissionPlannerProps {
   onSubmit: (payload: MissionInputPayload) => void;
@@ -50,12 +53,16 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
   onSelectObject,
 }) => {
   const [launch, setLaunch] = useState("Cubberley Community Center, Palo Alto");
-  const [destination, setDestination] = useState("Byxbee Park, Baylands Palo Alto");
+  const [destination, setDestination] = useState(
+    "Byxbee Park, Baylands Palo Alto",
+  );
   const [offsetM, setOffsetM] = useState(600);
   const [spacingM, setSpacingM] = useState(400);
   const [altitudeFt, setAltitudeFt] = useState(300);
   const [payloadKg, setPayloadKg] = useState(1.5);
-  const [droneClass, setDroneClass] = useState<"micro_uav" | "small_uav" | "medium_uav">("small_uav");
+  const [droneClass, setDroneClass] = useState<
+    "micro_uav" | "small_uav" | "medium_uav"
+  >("small_uav");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const applyPreset = (preset: (typeof PRESETS)[0]) => {
@@ -85,34 +92,42 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       {/* Editorial Hero Header */}
-      <div className="border-b border-slate-200 pb-5 pt-2 flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div className="space-y-1.5">
+      <div className="border-b border-slate-300/80 pb-6 pt-2 flex flex-col xl:flex-row xl:items-end justify-between gap-6">
+        <div className="space-y-2.5 max-w-4xl">
           <div className="flex items-center gap-2 text-xs font-mono text-slate-500 uppercase tracking-wider">
             <span className="w-1.5 h-1.5 rounded-full bg-sky-600" />
             <span>FAA PART 108 BVLOS CORRIDOR ENGINE</span>
           </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-[46px] font-normal text-slate-900 tracking-tight font-instrument leading-[1.1]">
+          <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-[72px] xl:text-[78px] text-slate-950 font-instrument leading-[1.02] tracking-tight">
             Plan the safest route through the physical world.
           </h1>
-          <p className="text-lg sm:text-xl text-slate-600 max-w-2xl font-normal leading-relaxed font-instrument">
-            Airlane builds a real-time digital twin of terrain, airspace, infrastructure, population, and wind to determine the safest autonomous drone corridor.
+          <p className="text-lg sm:text-xl md:text-2xl text-slate-600 max-w-3xl font-normal leading-relaxed font-instrument">
+            Airlane builds a real-time digital twin of terrain, airspace,
+            infrastructure, population, and wind to determine the safest
+            autonomous drone corridor.
           </p>
         </div>
 
         {/* Inline Engineering Specs */}
         <div className="hidden lg:flex items-center gap-4 text-xs font-mono text-slate-600 bg-white/85 backdrop-blur-md border border-slate-200/90 px-4 py-2.5 rounded-md shadow-[0_2px_8px_-2px_rgba(15,23,42,0.05)]">
           <div>
-            <span className="text-[10px] text-slate-400 block uppercase">SOURCES</span>
+            <span className="text-[10px] text-slate-400 block uppercase">
+              SOURCES
+            </span>
             <span className="font-bold text-slate-800">4 LIVE FEEDS</span>
           </div>
           <div className="w-px h-6 bg-slate-200" />
           <div>
-            <span className="text-[10px] text-slate-400 block uppercase">RESOLUTION</span>
+            <span className="text-[10px] text-slate-400 block uppercase">
+              RESOLUTION
+            </span>
             <span className="font-bold text-slate-800">BLOCK GROUP</span>
           </div>
           <div className="w-px h-6 bg-slate-200" />
           <div>
-            <span className="text-[10px] text-slate-400 block uppercase">SAFETY BASIS</span>
+            <span className="text-[10px] text-slate-400 block uppercase">
+              SAFETY BASIS
+            </span>
             <span className="font-bold text-emerald-700">DETERMINISTIC</span>
           </div>
         </div>
@@ -168,7 +183,9 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
                   <span className="w-2 h-2 rounded-full bg-sky-600" />
                   Launch Location
                 </span>
-                <span className="text-[10px] font-mono text-slate-400 font-normal">ORIGIN</span>
+                <span className="text-[10px] font-mono text-slate-400 font-normal">
+                  ORIGIN
+                </span>
               </label>
               <input
                 type="text"
@@ -187,7 +204,9 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
                   <span className="w-2 h-2 rounded-full bg-emerald-600" />
                   Destination
                 </span>
-                <span className="text-[10px] font-mono text-slate-400 font-normal">RECOVERY</span>
+                <span className="text-[10px] font-mono text-slate-400 font-normal">
+                  RECOVERY
+                </span>
               </label>
               <input
                 type="text"
@@ -206,7 +225,11 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
                 onClick={() => setShowAdvanced(!showAdvanced)}
                 className="text-xs font-mono font-medium text-sky-600 hover:text-sky-800 flex items-center gap-1 transition-colors"
               >
-                <span>{showAdvanced ? "[-] HIDE FLIGHT PARAMETERS" : "[+] ADVANCED: ALTITUDE, CLASS & SPACING"}</span>
+                <span>
+                  {showAdvanced
+                    ? "[-] HIDE FLIGHT PARAMETERS"
+                    : "[+] ADVANCED: ALTITUDE, CLASS & SPACING"}
+                </span>
               </button>
 
               {showAdvanced && (
@@ -219,7 +242,9 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
                       <input
                         type="number"
                         value={altitudeFt}
-                        onChange={(e) => setAltitudeFt(parseInt(e.target.value) || 300)}
+                        onChange={(e) =>
+                          setAltitudeFt(parseInt(e.target.value) || 300)
+                        }
                         className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-slate-900 text-xs"
                       />
                     </div>
@@ -231,7 +256,9 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
                         type="number"
                         step="0.1"
                         value={payloadKg}
-                        onChange={(e) => setPayloadKg(parseFloat(e.target.value) || 1.5)}
+                        onChange={(e) =>
+                          setPayloadKg(parseFloat(e.target.value) || 1.5)
+                        }
                         className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-slate-900 text-xs"
                       />
                     </div>
@@ -249,7 +276,9 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
                       >
                         <option value="small_uav">Small UAV (≤55 lbs)</option>
                         <option value="micro_uav">Micro UAV (≤0.55 lbs)</option>
-                        <option value="medium_uav">Medium UAV (&gt;55 lbs)</option>
+                        <option value="medium_uav">
+                          Medium UAV (&gt;55 lbs)
+                        </option>
                       </select>
                     </div>
                     <div>
@@ -259,7 +288,9 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
                       <input
                         type="number"
                         value={offsetM}
-                        onChange={(e) => setOffsetM(parseInt(e.target.value) || 600)}
+                        onChange={(e) =>
+                          setOffsetM(parseInt(e.target.value) || 600)
+                        }
                         className="w-full px-2 py-1 bg-white border border-slate-200 rounded text-slate-900 text-xs"
                       />
                     </div>
@@ -302,7 +333,9 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
           <div className="flex items-center justify-between px-1 text-xs font-mono text-slate-500">
             <div className="flex items-center gap-1.5">
               <span className="w-2 h-2 rounded-full bg-emerald-500" />
-              <span className="font-bold text-slate-800">LIVING DIGITAL TWIN ENVIRONMENT</span>
+              <span className="font-bold text-slate-800">
+                LIVING DIGITAL TWIN ENVIRONMENT
+              </span>
             </div>
             <span>INTERACTIVE AIRSPACE</span>
           </div>

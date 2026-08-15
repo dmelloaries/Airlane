@@ -136,31 +136,32 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
         </div>
 
         {/* Big Recommendation Title & Primary Justification */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          <div className="lg:col-span-8 space-y-2">
-            <div className="text-[11px] font-mono text-slate-400 uppercase tracking-wider">
-              RECOMMENDED FLIGHT CORRIDOR
+        <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6">
+          <div className="space-y-2.5 max-w-4xl">
+            <div className="flex items-center gap-2 text-xs font-mono text-slate-500 uppercase tracking-wider">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+              <span>RECOMMENDED FLIGHT CORRIDOR</span>
             </div>
-            <h1 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight font-display">
+            <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-[72px] xl:text-[78px] text-slate-950 font-instrument leading-[1.02] tracking-tight">
               {sc.recommended_name || "Corridor Alpha"} is the safest route
             </h1>
-            <p className="text-sm text-slate-700 leading-relaxed font-sans max-w-3xl">
+            <p className="text-lg sm:text-xl md:text-2xl text-slate-600 max-w-3xl font-normal leading-relaxed font-instrument">
               {sc.primary_justification ||
                 "Corridor Alpha maintains verified 68.3m lateral clearance from Mireye 345kV transmission lines, operates 100% within FAA 400ft Class D airspace ceilings, and avoids dense population clusters."}
             </p>
           </div>
 
-          <div className="lg:col-span-4 flex flex-wrap lg:justify-end gap-2 pt-2 lg:pt-0 font-mono text-xs">
+          <div className="flex flex-wrap xl:justify-end gap-2 shrink-0 font-mono text-xs">
             <button
               onClick={() => setShowExportModal(true)}
-              className="px-3.5 py-2 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-md shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="px-4 py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-md shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
             >
               <span>EXPORT FILING</span>
               <span>↓</span>
             </button>
             <button
               onClick={onReset}
-              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-md border border-slate-200 transition-colors cursor-pointer"
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-md border border-slate-200 transition-colors cursor-pointer"
             >
               NEW MISSION
             </button>
