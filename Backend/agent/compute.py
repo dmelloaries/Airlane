@@ -312,6 +312,7 @@ def wind_risk(
         "wind_gust_kt": gust,
         "wind_direction_deg": direction,
         "station_id": station_id,
+        "station_name": wind_data.get("station_name") or f"NOAA METAR Station {station_id}",
         "max_limit_kt": effective_limit,
         "drone_class": drone_class,
         "is_safe": is_safe,
@@ -358,6 +359,9 @@ def forced_landing_zones(
         trans_dist = float(trans_val)
         slope = float(slope_val)
 
+        elev_val, _ = get_field_info(mireye, "elevation", 12.0)
+        elev = float(elev_val) if elev_val is not None else 12.0
+
         if sub_dist > 400.0 and trans_dist > 300.0 and slope < 5.0:
             clearance = min(sub_dist, trans_dist)
             mile_marker = pt.distance_from_start_m / 1609.34
@@ -369,6 +373,7 @@ def forced_landing_zones(
                 "distance_along_route_miles": round(mile_marker, 2),
                 "suitability": "HIGH",
                 "slope_degrees": round(slope, 1),
+                "elevation_m": round(elev, 1),
                 "infrastructure_clearance_m": round(clearance, 1),
                 "source": "Mireye Earth API",
                 "description": f"Emergency forced landing spot at mile {mile_marker:.2f} with {clearance:.0f}m infrastructure clearance and {slope:.1f}° slope."

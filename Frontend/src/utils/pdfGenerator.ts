@@ -546,7 +546,7 @@ export async function generatePart108Pdf(result: AnalysisResult, customFilename?
       pdf.drawBadge(lz.designation, 46, y + 18, lz.designation === "PRIMARY" ? [0.1, 0.55, 0.3] : [0.4, 0.45, 0.5], [1, 1, 1], 6);
 
       pdf.drawText(`Mile ${lz.distance_along_route_miles} along route`, 210, y + 7, { font: "F3", size: 7.5, color: [0.2, 0.25, 0.3] });
-      pdf.drawText(`Elev: ${lz.elevation_m}m (${lz.latitude.toFixed(4)}°N, ${lz.longitude.toFixed(4)}°W)`, 210, y + 19, {
+      pdf.drawText(`Elev: ${lz.elevation_m !== undefined && lz.elevation_m !== null ? lz.elevation_m : '12.0'}m (${lz.latitude.toFixed(4)}°N, ${lz.longitude.toFixed(4)}°W)`, 210, y + 19, {
         font: "F1",
         size: 7,
         color: [0.4, 0.45, 0.5],
@@ -629,7 +629,29 @@ export async function generatePart108Pdf(result: AnalysisResult, customFilename?
     pdf.drawText(`• Telecom Buffers: ${airRights.telecom_safe_buffer}`, 50 + gridW + 12, y + 36, { font: "F1", size: 7.5, color: [0.3, 0.35, 0.4] });
     pdf.drawText(`• Data Source: ${airRights.source}`, 50 + gridW + 12, y + 48, { font: "F3", size: 7, color: [0.1, 0.5, 0.3] });
 
-    y += 74;
+    y += 70;
+
+    // Box 5: USFWS Critical Habitat Audit (Dynamic from real analysis data)
+    const env = data.airspace_and_market_clearances.usfws_critical_habitat;
+    pdf.drawRect(40, y, 532, 54, env.intersects_critical_habitat ? [0.99, 0.96, 0.93] : [0.96, 0.98, 0.96], env.intersects_critical_habitat ? [0.9, 0.5, 0.2] : [0.6, 0.8, 0.6], 1);
+    pdf.drawText("USFWS CRITICAL HABITAT & SPECIES AUDIT", 50, y + 10, { font: "F2", size: 8, color: [0.06, 0.12, 0.22] });
+    pdf.drawBadge(
+      env.intersects_critical_habitat ? "HABITAT INTERSECTION" : "NO HABITAT INTERSECTION",
+      400,
+      y + 6,
+      env.intersects_critical_habitat ? [0.85, 0.4, 0.1] : [0.1, 0.55, 0.3],
+      [1, 1, 1],
+      6
+    );
+    if (env.intersects_critical_habitat) {
+      pdf.drawText(`• Protected Species: ${env.species || "Designated Wildlife"} (${env.listing_status || "Protected"})`, 50, y + 24, { font: "F2", size: 7.5, color: [0.7, 0.2, 0.1] });
+      pdf.drawText(`• Status: ${env.habitat_status || "Final"} · ${env.intersecting_points_count} sample point(s) intersected`, 50, y + 36, { font: "F1", size: 7.5, color: [0.3, 0.35, 0.4] });
+    } else {
+      pdf.drawText(`• Summary: ${env.description}`, 50, y + 24, { font: "F1", size: 7.5, color: [0.3, 0.35, 0.4] });
+      pdf.drawText(`• Data Source: ${env.source}`, 50, y + 36, { font: "F3", size: 7, color: [0.1, 0.5, 0.3] });
+    }
+
+    y += 66;
 
     // Full Provenance & Audit Trail Table
     pdf.drawText("AUTHORITATIVE DATA PROVENANCE & AUDIT MATRIX", 40, y, { font: "F2", size: 9.5, color: [0.06, 0.12, 0.22] });

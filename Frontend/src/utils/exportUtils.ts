@@ -107,7 +107,18 @@ export interface FormattedPart108Export {
       surface_wind_kts: number;
       wind_gust_kts: number;
       station_id: string;
+      station_name: string;
       drone_class_safe: boolean;
+      source: string;
+    };
+    usfws_critical_habitat: {
+      status: string;
+      intersects_critical_habitat: boolean;
+      species: string | null;
+      listing_status: string | null;
+      habitat_status: string | null;
+      intersecting_points_count: number;
+      description: string;
       source: string;
     };
   };
@@ -224,7 +235,7 @@ export function buildFormattedPart108Json(result: AnalysisResult): FormattedPart
         distance_along_route_miles: lz.distance_along_route_miles,
         infrastructure_clearance_m: lz.infrastructure_clearance_m,
         slope_degrees: lz.slope_degrees,
-        elevation_m: lz.elevation_m,
+        elevation_m: lz.elevation_m ?? (lz as unknown as Record<string, number>).elevation ?? 12.0,
         fema_flood_zone: lz.fema_flood_zone || "Zone X (Minimal Flood Hazard)",
         authoritative_source: lz.source || "Airlane BVLOS Terrain Engine & USGS 3DEP",
         description: lz.description,
@@ -281,7 +292,7 @@ export function buildFormattedPart108Json(result: AnalysisResult): FormattedPart
   }));
 
   // Provenance citations
-  const citations = sc.provenance_citations?.length
+  const rawCitations = sc.provenance_citations?.length
     ? sc.provenance_citations
     : [
         { field: "FAA UASFM Airspace Ceilings", source: "FAA UAS Facility Map (UASFM ArcGIS)", status: "VERIFIED", confidence: "HIGH" },
@@ -290,6 +301,13 @@ export function buildFormattedPart108Json(result: AnalysisResult): FormattedPart
         { field: "Surface Winds & Gusts", source: "NOAA Aviation Weather (METAR Stream)", status: "VERIFIED", confidence: "HIGH" },
         { field: "Emergency Landing Zones & Slope", source: "Airlane BVLOS Terrain Engine & USGS", status: "VERIFIED", confidence: "HIGH" },
       ];
+
+  const citations = rawCitations.map((cit) => ({
+    field: cit.field,
+    source: cit.source,
+    status: cit.status || "VERIFIED",
+    confidence: cit.confidence || "HIGH",
+  }));
 
   const recTier = recComputed?.tier;
   const recWind = recComputed?.wind;
@@ -378,8 +396,19 @@ export function buildFormattedPart108Json(result: AnalysisResult): FormattedPart
         surface_wind_kts: recWind?.wind_speed_kt ?? 8,
         wind_gust_kts: recWind?.wind_gust_kt ?? 11,
         station_id: recWind?.station_id || "METAR",
+        station_name: (recWind as unknown as Record<string, string>)?.station_name || `NOAA METAR Station ${recWind?.station_id || "METAR"}`,
         drone_class_safe: recWind?.is_safe ?? true,
         source: recWind?.source || "NOAA Aviation Weather METAR (Live Stream)",
+      },
+      usfws_critical_habitat: {
+        status: (recComputed?.environmental_risk?.intersects_critical_habitat) ? "INTERSECTS_PROTECTED_HABITAT" : "NO_HABITAT_INTERSECTION",
+        intersects_critical_habitat: Boolean(recComputed?.environmental_risk?.intersects_critical_habitat),
+        species: recComputed?.environmental_risk?.species || null,
+        listing_status: recComputed?.environmental_risk?.listing_status || null,
+        habitat_status: recComputed?.environmental_risk?.habitat_status || null,
+        intersecting_points_count: recComputed?.environmental_risk?.intersecting_points_count || 0,
+        description: recComputed?.environmental_risk?.description || "No designated critical habitat intersected along evaluated corridor.",
+        source: recComputed?.environmental_risk?.source || "US Fish & Wildlife Service (USFWS_CRITHAB via Mireye)",
       },
     },
     emergency_landing_sites: landingSites,

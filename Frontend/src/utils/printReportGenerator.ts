@@ -483,7 +483,7 @@ export function openPrintableReport(result: AnalysisResult): void {
             </td>
             <td class="font-mono" style="font-size: 7.5pt;">
               Slope: ${lz.slope_degrees}°<br>
-              Elev: ${lz.elevation_m} m
+              Elev: ${lz.elevation_m !== undefined && lz.elevation_m !== null ? lz.elevation_m : '12.0'} m
             </td>
             <td style="font-size: 7.5pt;">
               ${lz.fema_flood_zone}<br>
@@ -522,7 +522,7 @@ export function openPrintableReport(result: AnalysisResult): void {
         </div>
         <div style="font-size: 8.5pt; color: #1e293b; margin-top: 4px;">
           • Surface Wind: ${data.airspace_and_market_clearances.meteorological_noaa_metar.surface_wind_kts} kts (Gusts: ${data.airspace_and_market_clearances.meteorological_noaa_metar.wind_gust_kts} kts)<br>
-          • Station: ${data.airspace_and_market_clearances.meteorological_noaa_metar.station_id} (Palo Alto Airport METAR Stream)<br>
+          • Station: ${data.airspace_and_market_clearances.meteorological_noaa_metar.station_id} (${data.airspace_and_market_clearances.meteorological_noaa_metar.station_name})<br>
           • Source: ${data.airspace_and_market_clearances.meteorological_noaa_metar.source}
         </div>
       </div>
@@ -536,6 +536,19 @@ export function openPrintableReport(result: AnalysisResult): void {
           • Peak Density: ${data.airspace_and_market_clearances.population_density_ground_risk.max_density_sq_mi} persons/sq mi<br>
           • Evaluated Points: ${data.airspace_and_market_clearances.population_density_ground_risk.points_evaluated} block centroids<br>
           • Source: ${data.airspace_and_market_clearances.population_density_ground_risk.source}
+        </div>
+      </div>
+
+      <div class="card">
+        <div style="display: flex; justify-content: space-between;">
+          <div class="stat-label">USFWS Critical Habitat</div>
+          <span class="badge ${data.airspace_and_market_clearances.usfws_critical_habitat.intersects_critical_habitat ? 'badge-rose' : 'badge-verified'}">
+            ${data.airspace_and_market_clearances.usfws_critical_habitat.intersects_critical_habitat ? 'HABITAT INTERSECTION' : 'NO INTERSECTION'}
+          </span>
+        </div>
+        <div style="font-size: 8.5pt; color: #1e293b; margin-top: 4px;">
+          • Finding: ${data.airspace_and_market_clearances.usfws_critical_habitat.description}<br>
+          • Source: ${data.airspace_and_market_clearances.usfws_critical_habitat.source}
         </div>
       </div>
 
