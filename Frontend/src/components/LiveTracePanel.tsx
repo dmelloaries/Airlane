@@ -60,7 +60,7 @@ export const LiveTracePanel: React.FC<LiveTracePanelProps> = ({
 
       {/* Terminal View Body */}
       {isExpanded && (
-        <div className="p-2 bg-slate-950">
+        <div className="p-2 bg-black">
           <AgentTerminal
             events={events}
             isStreaming={isStreaming}

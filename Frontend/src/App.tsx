@@ -383,7 +383,13 @@ export default function App() {
     };
   }, []);
 
+  // Ensure window stays at top when switching between screens
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }, [activeView]);
+
   const handleStartMission = (payload: MissionInputPayload) => {
+    window.scrollTo({ top: 0, behavior: "instant" });
     setErrorMessage(null);
     setTraceEvents([]);
     setIsStreaming(true);

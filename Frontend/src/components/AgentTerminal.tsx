@@ -21,85 +21,85 @@ const STAGE_CONFIG: Record<
   geocoding: {
     tag: "GEOCODE",
     color: "text-sky-400",
-    bg: "bg-sky-950/70",
-    border: "border-sky-800/60",
+    bg: "bg-[#181818]",
+    border: "border-[#333333]",
     icon: "📍",
   },
   corridor_generation: {
     tag: "GEOMETRY",
     color: "text-cyan-400",
-    bg: "bg-cyan-950/70",
-    border: "border-cyan-800/60",
+    bg: "bg-[#181818]",
+    border: "border-[#333333]",
     icon: "📐",
   },
   data_ingestion: {
     tag: "SENSOR HUB",
     color: "text-indigo-400",
-    bg: "bg-indigo-950/70",
-    border: "border-indigo-800/60",
+    bg: "bg-[#181818]",
+    border: "border-[#333333]",
     icon: "⚡",
   },
   mireye_hazards: {
     tag: "MIREYE 345kV",
     color: "text-amber-400",
-    bg: "bg-amber-950/70",
-    border: "border-amber-800/60",
+    bg: "bg-[#1c1810]",
+    border: "border-[#3d321d]",
     icon: "⚠️",
   },
   faa_airspace: {
     tag: "FAA UASFM",
     color: "text-blue-400",
-    bg: "bg-blue-950/70",
-    border: "border-blue-800/60",
+    bg: "bg-[#181818]",
+    border: "border-[#333333]",
     icon: "🛡️",
   },
   population_density: {
     tag: "CENSUS TIER",
     color: "text-purple-400",
-    bg: "bg-purple-950/70",
-    border: "border-purple-800/60",
+    bg: "bg-[#181818]",
+    border: "border-[#333333]",
     icon: "👥",
   },
   noaa_wind: {
     tag: "NOAA METAR",
     color: "text-teal-400",
-    bg: "bg-teal-950/70",
-    border: "border-teal-800/60",
+    bg: "bg-[#181818]",
+    border: "border-[#333333]",
     icon: "💨",
   },
   compute_engine: {
     tag: "COMPUTE RANK",
     color: "text-emerald-400",
-    bg: "bg-emerald-950/70",
-    border: "border-emerald-800/60",
+    bg: "bg-[#121c15]",
+    border: "border-[#1d3d24]",
     icon: "⚖️",
   },
   reasoning_layer: {
     tag: "SAFETY REASON",
     color: "text-fuchsia-400",
-    bg: "bg-fuchsia-950/70",
-    border: "border-fuchsia-800/60",
+    bg: "bg-[#181818]",
+    border: "border-[#333333]",
     icon: "🧠",
   },
   verification: {
     tag: "PROVENANCE",
     color: "text-lime-400",
-    bg: "bg-lime-950/70",
-    border: "border-lime-800/60",
+    bg: "bg-[#181818]",
+    border: "border-[#333333]",
     icon: "✓",
   },
   complete: {
     tag: "COMPLETE",
     color: "text-emerald-300",
-    bg: "bg-emerald-950/80",
-    border: "border-emerald-700/80",
+    bg: "bg-[#121c15]",
+    border: "border-[#1d3d24]",
     icon: "🏁",
   },
   error: {
     tag: "ERROR",
     color: "text-rose-400",
-    bg: "bg-rose-950/80",
-    border: "border-rose-700/80",
+    bg: "bg-[#1c1212]",
+    border: "border-[#3d1d1d]",
     icon: "✖",
   },
 };
@@ -122,7 +122,6 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
   const [elapsedTimer, setElapsedTimer] = useState<string>("00:00.0");
 
   const terminalBodyRef = useRef<HTMLDivElement>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
   const startTimeRef = useRef<number | null>(null);
 
   // Live timer during streaming
@@ -150,10 +149,10 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
     };
   }, [isStreaming, events.length]);
 
-  // Handle auto-scroll
+  // Handle auto-scroll inside the terminal container ONLY (without scrolling the outer window)
   useEffect(() => {
-    if (autoScroll && !isUserScrolledUp) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (autoScroll && !isUserScrolledUp && terminalBodyRef.current) {
+      terminalBodyRef.current.scrollTop = terminalBodyRef.current.scrollHeight;
     }
   }, [events, autoScroll, isUserScrolledUp]);
 
@@ -161,13 +160,18 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
   const handleScroll = () => {
     if (!terminalBodyRef.current) return;
     const { scrollTop, scrollHeight, clientHeight } = terminalBodyRef.current;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 40;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < 35;
     setIsUserScrolledUp(!isAtBottom);
   };
 
   const scrollToBottom = () => {
     setIsUserScrolledUp(false);
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (terminalBodyRef.current) {
+      terminalBodyRef.current.scrollTo({
+        top: terminalBodyRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }
   };
 
   // Toggle single log expansion
@@ -226,47 +230,63 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
   const activeThought = latestEvent?.agent_thought || (isStreaming ? "Analyzing multi-corridor route risk..." : "Pipeline execution finalized.");
 
   return (
-    <div className="w-full rounded-xl bg-slate-950 border border-slate-800/90 shadow-2xl overflow-hidden font-mono flex flex-col transition-all duration-300">
-      {/* 1. TERMINAL WINDOW HEADER */}
-      <div className="bg-slate-900/95 border-b border-slate-800/90 px-4 py-2.5 flex flex-wrap items-center justify-between gap-2.5 select-none backdrop-blur-md">
-        {/* Left: Window Dots & Title */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500/80 inline-block" />
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500/80 inline-block" />
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500/80 inline-block" />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-200 tracking-wider">
-              {title}
-            </span>
-            <span className="text-[10px] text-slate-400 bg-slate-800/70 px-1.5 py-0.5 rounded border border-slate-700/50">
-              v1.0-BVLOS
-            </span>
-          </div>
+    <div className="w-full rounded-2xl bg-[#000000] border border-[#262626] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] overflow-hidden font-mono flex flex-col transition-all duration-300 ring-1 ring-white/5">
+      {/* 1. MACBOOK PRO macOS TERMINAL TITLE BAR (Pure Apple Dark Graphite) */}
+      <div className="bg-[#181818] border-b border-[#262626] px-4 py-3 flex flex-wrap items-center justify-between gap-3 select-none backdrop-blur-xl relative">
+        {/* Left: macOS Traffic Light Buttons */}
+        <div className="flex items-center gap-2 group">
+          <button
+            onClick={onCancel}
+            title={isStreaming ? "Abort mission" : "Close"}
+            className="w-3 h-3 rounded-full bg-[#ff5f56] border border-[#e0443e] flex items-center justify-center text-[8px] text-black/80 font-bold opacity-90 group-hover:opacity-100 hover:brightness-110 cursor-pointer shadow-xs"
+          >
+            <span className="opacity-0 group-hover:opacity-100 transition-opacity leading-none">✕</span>
+          </button>
+          <button
+            title="Minimize"
+            className="w-3 h-3 rounded-full bg-[#ffbd2e] border border-[#dea123] flex items-center justify-center text-[8px] text-black/80 font-bold opacity-90 group-hover:opacity-100 hover:brightness-110 cursor-pointer shadow-xs"
+          >
+            <span className="opacity-0 group-hover:opacity-100 transition-opacity leading-none">–</span>
+          </button>
+          <button
+            title="Maximize / Fullscreen"
+            className="w-3 h-3 rounded-full bg-[#27c93f] border border-[#1aab29] flex items-center justify-center text-[8px] text-black/80 font-bold opacity-90 group-hover:opacity-100 hover:brightness-110 cursor-pointer shadow-xs"
+          >
+            <span className="opacity-0 group-hover:opacity-100 transition-opacity leading-none">+</span>
+          </button>
         </div>
 
-        {/* Right: Live Stream Pill, Elapsed Timer & Controls */}
-        <div className="flex items-center gap-3">
-          {/* Live Status Badge */}
+        {/* Center: macOS Terminal Title & Host Info */}
+        <div className="flex items-center gap-2 text-slate-300 text-xs font-semibold tracking-wide">
+          <span className="text-slate-400"></span>
+          <span className="text-slate-200">airlane@macbook-pro:</span>
+          <span className="text-sky-400 font-bold">~/bvlos-stream</span>
+          <span className="text-[10px] text-slate-400 bg-black/60 px-2 py-0.5 rounded-full border border-[#333333] font-mono">
+            zsh · arm64
+          </span>
+        </div>
+
+        {/* Right: Live Stream Status, Elapsed Timer & Actions */}
+        <div className="flex items-center gap-2.5">
+          {/* Live SSE Status Pill */}
           {isStreaming ? (
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-950/80 border border-emerald-500/40 text-emerald-400 text-[10px] font-bold tracking-wide animate-pulse">
+            <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/40 text-emerald-400 text-[10px] font-bold tracking-wide animate-pulse shadow-[0_0_12px_rgba(16,185,129,0.2)]">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
               <span>LIVE SSE STREAM</span>
             </div>
           ) : events.length > 0 ? (
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-sky-950/80 border border-sky-500/40 text-sky-400 text-[10px] font-bold tracking-wide">
+            <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-500/30 text-sky-400 text-[10px] font-bold tracking-wide">
               <span className="w-1.5 h-1.5 rounded-full bg-sky-400" />
               <span>TRACE COMPLETE ({events.length})</span>
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 text-[10px]">
+            <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#222222] text-slate-400 text-[10px]">
               <span>IDLE</span>
             </div>
           )}
 
           {/* Elapsed Timer */}
-          <div className="text-[11px] text-slate-400 bg-slate-950/60 px-2 py-0.5 rounded border border-slate-800">
+          <div className="text-[11px] text-slate-300 bg-[#0d0d0d] px-2.5 py-0.5 rounded-md border border-[#2a2a2a] font-mono">
             ⏱ {elapsedTimer}
           </div>
 
@@ -274,9 +294,9 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
           {isStreaming && onCancel && (
             <button
               onClick={onCancel}
-              className="px-2 py-0.5 rounded text-[10px] font-bold text-rose-300 bg-rose-950/60 hover:bg-rose-900/80 border border-rose-700/60 hover:border-rose-500 transition-colors cursor-pointer"
+              className="px-2 py-0.5 rounded-md text-[10px] font-bold text-rose-300 bg-[#251010] hover:bg-rose-900 border border-rose-600/50 hover:border-rose-400 transition-colors cursor-pointer"
             >
-              [ABORT]
+              KILL
             </button>
           )}
 
@@ -284,16 +304,37 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
           <button
             onClick={handleCopyLogs}
             title="Copy logs to clipboard"
-            className="px-2 py-0.5 rounded text-[10px] text-slate-300 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 transition-colors cursor-pointer"
+            className="px-2.5 py-0.5 rounded-md text-[10px] text-slate-200 bg-[#242424] hover:bg-[#303030] border border-[#333333] hover:border-[#444444] transition-colors cursor-pointer shadow-xs"
           >
-            {copied ? "✓ COPIED" : "COPY TRACE"}
+            {copied ? "✓ COPIED" : "COPY"}
           </button>
         </div>
       </div>
 
-      {/* 2. AGENT LIVE COGNITION / ACTIVE THOUGHT STREAM BANNER */}
-      <div className="px-4 py-2.5 bg-gradient-to-r from-sky-950/50 via-slate-900/60 to-indigo-950/50 border-b border-slate-800/80 flex items-start gap-3">
-        <div className="mt-0.5 shrink-0 flex items-center justify-center w-6 h-6 rounded-md bg-sky-500/10 border border-sky-500/30 text-sky-400 text-xs">
+      {/* 2. macOS ZSH COMMAND PROMPT BAR */}
+      <div className="px-4 py-2.5 bg-[#111111] border-b border-[#222222] flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+        <div className="flex items-center gap-2 overflow-x-auto text-[11px]">
+          <span className="text-emerald-400 font-bold">➜</span>
+          <span className="text-cyan-400 font-bold">airlane-engine</span>
+          <span className="text-fuchsia-400 font-semibold">git:(<span className="text-rose-400">main</span>)</span>
+          <span className="text-slate-500">✗</span>
+          <span className="text-slate-300 font-mono">
+            curl -N -H "Accept: text/event-stream" /analyze/stream
+          </span>
+        </div>
+
+        {activeStage && (
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#181818] text-sky-400 border border-[#333333] font-bold">
+              PHASE 0{activeStage}/08
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* 3. AGENT COGNITION STREAM BANNER (Pure Black Background) */}
+      <div className="px-4 py-2.5 bg-[#0a0a0a] border-b border-[#222222] flex items-start gap-3">
+        <div className="mt-0.5 shrink-0 flex items-center justify-center w-6 h-6 rounded-lg bg-[#181818] border border-[#333333] text-sky-400 text-xs shadow-inner">
           {isStreaming ? (
             <span className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-ping" />
           ) : (
@@ -303,16 +344,11 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-[10px] uppercase font-bold tracking-wider text-sky-400">
-              Agent Cognitive Focus
+              Agent Cognitive Stream
             </span>
-            {activeStage && (
-              <span className="text-[9px] px-1.5 py-0.2 rounded bg-sky-900/40 text-sky-300 border border-sky-700/40">
-                Phase 0{activeStage}/08
-              </span>
-            )}
             {latestEvent?.source_name && (
               <span className="text-[9px] text-slate-400">
-                via {latestEvent.source_name}
+                • {latestEvent.source_name}
               </span>
             )}
           </div>
@@ -322,17 +358,17 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
         </div>
       </div>
 
-      {/* 3. INTERACTIVE CONTROLS / FILTER BAR */}
+      {/* 4. INTERACTIVE CONTROLS / FILTER BAR */}
       {showControls && (
-        <div className="bg-slate-900/80 border-b border-slate-800/80 px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="bg-[#111111] border-b border-[#222222] px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
           {/* Filter Category Chips */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
             <button
               onClick={() => setFilterCategory("all")}
               className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${
                 filterCategory === "all"
-                  ? "bg-sky-500 text-slate-950 font-bold"
-                  : "bg-slate-800/60 text-slate-400 hover:text-slate-200"
+                  ? "bg-sky-500 text-black font-bold"
+                  : "bg-[#1c1c1c] text-slate-400 hover:text-slate-200 border border-[#2a2a2a]"
               }`}
             >
               All ({events.length})
@@ -341,8 +377,8 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
               onClick={() => setFilterCategory("agent")}
               className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${
                 filterCategory === "agent"
-                  ? "bg-fuchsia-500 text-slate-950 font-bold"
-                  : "bg-slate-800/60 text-slate-400 hover:text-slate-200"
+                  ? "bg-fuchsia-500 text-black font-bold"
+                  : "bg-[#1c1c1c] text-slate-400 hover:text-slate-200 border border-[#2a2a2a]"
               }`}
             >
               Reasoning
@@ -351,8 +387,8 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
               onClick={() => setFilterCategory("sensor")}
               className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${
                 filterCategory === "sensor"
-                  ? "bg-amber-500 text-slate-950 font-bold"
-                  : "bg-slate-800/60 text-slate-400 hover:text-slate-200"
+                  ? "bg-amber-500 text-black font-bold"
+                  : "bg-[#1c1c1c] text-slate-400 hover:text-slate-200 border border-[#2a2a2a]"
               }`}
             >
               Sensors & APIs
@@ -361,8 +397,8 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
               onClick={() => setFilterCategory("geometry")}
               className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${
                 filterCategory === "geometry"
-                  ? "bg-cyan-500 text-slate-950 font-bold"
-                  : "bg-slate-800/60 text-slate-400 hover:text-slate-200"
+                  ? "bg-cyan-500 text-black font-bold"
+                  : "bg-[#1c1c1c] text-slate-400 hover:text-slate-200 border border-[#2a2a2a]"
               }`}
             >
               Corridors
@@ -371,8 +407,8 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
               onClick={() => setFilterCategory("compute")}
               className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${
                 filterCategory === "compute"
-                  ? "bg-emerald-500 text-slate-950 font-bold"
-                  : "bg-slate-800/60 text-slate-400 hover:text-slate-200"
+                  ? "bg-emerald-500 text-black font-bold"
+                  : "bg-[#1c1c1c] text-slate-400 hover:text-slate-200 border border-[#2a2a2a]"
               }`}
             >
               Scoring
@@ -387,7 +423,7 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Filter logs..."
-                className="w-32 sm:w-44 bg-slate-950 border border-slate-700/60 rounded px-2 py-0.5 text-[11px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-sky-500"
+                className="w-32 sm:w-44 bg-black border border-[#333333] rounded px-2 py-0.5 text-[11px] text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-sky-500"
               />
               {searchQuery && (
                 <button
@@ -404,7 +440,7 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
                 type="checkbox"
                 checked={autoScroll}
                 onChange={(e) => setAutoScroll(e.target.checked)}
-                className="w-3 h-3 rounded bg-slate-950 border-slate-700 text-sky-500 focus:ring-0"
+                className="w-3 h-3 rounded bg-black border-[#333333] text-sky-500 focus:ring-0"
               />
               <span>Auto-scroll</span>
             </label>
@@ -412,13 +448,13 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
         </div>
       )}
 
-      {/* 4. TERMINAL LOG STREAM BODY */}
-      <div className="relative flex-1">
+      {/* 5. TERMINAL LOG STREAM BODY (Pure Jet Black #000000) */}
+      <div className="relative flex-1 bg-black">
         <div
           ref={terminalBodyRef}
           onScroll={handleScroll}
           style={{ maxHeight }}
-          className="p-3.5 overflow-y-auto space-y-1.5 text-xs bg-slate-950/95 scroll-smooth"
+          className="p-3.5 overflow-y-auto space-y-1.5 text-xs bg-black scroll-smooth"
         >
           {/* Empty connecting state */}
           {events.length === 0 && isStreaming && (
@@ -445,8 +481,8 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
             const stageCfg = STAGE_CONFIG[evt.step] || {
               tag: evt.step.toUpperCase(),
               color: "text-sky-400",
-              bg: "bg-sky-950/70",
-              border: "border-sky-800/60",
+              bg: "bg-[#181818]",
+              border: "border-[#333333]",
               icon: "●",
             };
             const isExpanded = expandedIndices.has(idx);
@@ -463,8 +499,8 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
                 key={idx}
                 className={`group rounded-md border transition-all duration-150 ${
                   isExpanded
-                    ? "bg-slate-900/90 border-slate-700/80 shadow-md"
-                    : "bg-slate-900/40 border-slate-900 hover:bg-slate-900/80 hover:border-slate-800"
+                    ? "bg-[#141414] border-[#383838] shadow-md"
+                    : "bg-[#0d0d0d] border-[#1c1c1c] hover:bg-[#161616] hover:border-[#2a2a2a]"
                 }`}
               >
                 {/* Main Log Row */}
@@ -489,7 +525,7 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
 
                   {/* Source Name pill if available */}
                   {evt.source_name && (
-                    <span className="hidden md:inline-block shrink-0 text-[9px] text-slate-400 bg-slate-800/80 px-1.5 py-0.5 rounded border border-slate-700/40">
+                    <span className="hidden md:inline-block shrink-0 text-[9px] text-slate-400 bg-[#1c1c1c] px-1.5 py-0.5 rounded border border-[#2a2a2a]">
                       {evt.source_name}
                     </span>
                   )}
@@ -526,10 +562,10 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
 
                 {/* Expanded Telemetry & Structured JSON Drawer */}
                 {isExpanded && hasDetails && (
-                  <div className="px-3 pb-3 pt-1 border-t border-slate-800/80 bg-slate-950/60 rounded-b-md space-y-2 text-xs">
+                  <div className="px-3 pb-3 pt-1 border-t border-[#262626] bg-[#080808] rounded-b-md space-y-2 text-xs">
                     {/* Agent Thought */}
                     {evt.agent_thought && (
-                      <div className="p-2 rounded bg-sky-950/30 border border-sky-800/40 text-sky-200 text-[11px] font-sans flex items-start gap-2">
+                      <div className="p-2 rounded bg-[#111111] border border-[#262626] text-sky-200 text-[11px] font-sans flex items-start gap-2">
                         <span className="text-sky-400 font-bold shrink-0">🧠 Reasoning:</span>
                         <span>{evt.agent_thought}</span>
                       </div>
@@ -545,7 +581,7 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
                           {Object.entries(evt.metrics).map(([k, v]) => (
                             <div
                               key={k}
-                              className="px-2 py-0.5 rounded bg-slate-900 border border-slate-800 flex items-center gap-1.5 text-[10px]"
+                              className="px-2 py-0.5 rounded bg-[#161616] border border-[#2a2a2a] flex items-center gap-1.5 text-[10px]"
                             >
                               <span className="text-slate-400">{k.replace(/_/g, " ")}:</span>
                               <span className="text-sky-300 font-bold font-mono">
@@ -564,7 +600,7 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
                         {Object.entries(evt.tiers).map(([c, t]) => (
                           <span
                             key={c}
-                            className="px-1.5 py-0.2 rounded bg-purple-950/60 border border-purple-800/60 text-purple-300 font-mono"
+                            className="px-1.5 py-0.2 rounded bg-[#181818] border border-[#333333] text-purple-300 font-mono"
                           >
                             {c.replace("corridor_", "Corridor ").toUpperCase()}: {t}
                           </span>
@@ -586,15 +622,13 @@ export const AgentTerminal: React.FC<AgentTerminalProps> = ({
               </span>
             </div>
           )}
-
-          <div ref={bottomRef} />
         </div>
 
         {/* Floating "New logs received ↓" indicator when scrolled up */}
         {isUserScrolledUp && isStreaming && (
           <button
             onClick={scrollToBottom}
-            className="absolute bottom-3 right-4 px-3 py-1 bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold rounded-full shadow-lg border border-sky-400/50 flex items-center gap-1.5 animate-bounce cursor-pointer z-10"
+            className="absolute bottom-3 right-4 px-3 py-1 bg-[#222222] hover:bg-[#2c2c2c] text-white text-xs font-bold rounded-full shadow-lg border border-[#444444] flex items-center gap-1.5 animate-bounce cursor-pointer z-10"
           >
             <span>↓ New stream events</span>
           </button>

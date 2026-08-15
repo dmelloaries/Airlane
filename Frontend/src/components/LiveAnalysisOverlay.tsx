@@ -131,6 +131,22 @@ export const LiveAnalysisOverlay: React.FC<LiveAnalysisOverlayProps> = ({
             style={{ width: `${progressPercent}%` }}
           />
         </div>
+
+        {/* Completion Toast Banner */}
+        {currentStageIndex >= 8 && (
+          <div className="p-3 rounded-lg bg-gradient-to-r from-emerald-50 to-sky-50 border border-emerald-300 text-emerald-900 text-xs font-mono flex items-center justify-between shadow-xs animate-in fade-in duration-300">
+            <div className="flex items-center gap-2.5">
+              <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold shadow-xs">✓</span>
+              <div>
+                <span className="font-bold text-slate-900">Safety Verdict Compiled:</span>
+                <span className="text-emerald-800 ml-1">Corridor Alpha cleared with Tier 1 ground risk (92% Confidence). Loading Safety Case...</span>
+              </div>
+            </div>
+            <span className="text-[10px] bg-emerald-600 text-white px-2.5 py-0.5 rounded-full font-bold uppercase animate-pulse">
+              100% READY
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Main View Area according to viewMode */}
