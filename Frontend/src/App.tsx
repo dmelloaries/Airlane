@@ -626,14 +626,14 @@ export default function App() {
   };
 
   return (
-    <div className="relative min-h-screen bg-[#f8fafc] text-slate-900 flex flex-col font-sans selection:bg-sky-100 selection:text-sky-900 bg-aviation-grid overflow-x-hidden">
+    <div className="relative min-h-screen bg-[#ebedf2] text-slate-900 flex flex-col font-sans selection:bg-sky-100 selection:text-sky-900 bg-aviation-grid overflow-x-hidden">
       {/* RICH MULTI-LAYERED TECHNICAL AVIATION & TOPOGRAPHIC BACKGROUND */}
       <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
-        {/* Topographic Elevation Curves Texture */}
-        <div className="absolute inset-0 bg-topographic-contours opacity-60" />
+        {/* Topographic Elevation Curves Texture (Spacious & subtle) */}
+        <div className="absolute inset-0 bg-topographic-contours opacity-35" />
         
         {/* Tactile Micro-noise grain overlay */}
-        <div className="absolute inset-0 bg-tactile-noise opacity-70" />
+        <div className="absolute inset-0 bg-tactile-noise opacity-50" />
         
         {/* Ambient Aerospace Lighting Radial Depth Mesh */}
         <div className="absolute inset-0 ambient-glow-sky" />
@@ -641,8 +641,8 @@ export default function App() {
         <div className="absolute inset-0 ambient-glow-emerald" />
 
         {/* Technical Margin Ruler Ticks (Left & Right) */}
-        <div className="absolute top-0 bottom-0 left-2 w-px bg-slate-200/60 hidden 2xl:block">
-          <div className="h-full flex flex-col justify-between py-12 text-[8px] font-mono text-slate-400/50">
+        <div className="absolute top-0 bottom-0 left-2 w-px bg-slate-300/70 hidden 2xl:block">
+          <div className="h-full flex flex-col justify-between py-12 text-[8px] font-mono text-slate-500/70 font-semibold">
             <span>+000</span>
             <span>+200</span>
             <span>+400</span>
@@ -652,8 +652,8 @@ export default function App() {
           </div>
         </div>
 
-        <div className="absolute top-0 bottom-0 right-2 w-px bg-slate-200/60 hidden 2xl:block">
-          <div className="h-full flex flex-col justify-between py-12 text-[8px] font-mono text-slate-400/50 text-right">
+        <div className="absolute top-0 bottom-0 right-2 w-px bg-slate-300/70 hidden 2xl:block">
+          <div className="h-full flex flex-col justify-between py-12 text-[8px] font-mono text-slate-500/70 font-semibold text-right">
             <span>SV-N</span>
             <span>37.44°</span>
             <span>37.43°</span>
@@ -664,16 +664,16 @@ export default function App() {
         </div>
 
         {/* Subtle Technical Aerospace Coordinate Watermarks */}
-        <div className="absolute top-14 left-8 font-mono text-[9px] text-slate-400/40 select-none tracking-widest hidden xl:block">
+        <div className="absolute top-14 left-8 font-mono text-[9px] text-slate-500/60 font-semibold select-none tracking-widest hidden xl:block">
           + AIRLANE SECTOR: 37.4172° N · 122.1084° W · WGS84 ISO-CONTOURS +
         </div>
-        <div className="absolute top-14 right-8 font-mono text-[9px] text-slate-400/40 select-none tracking-widest hidden xl:block">
+        <div className="absolute top-14 right-8 font-mono text-[9px] text-slate-500/60 font-semibold select-none tracking-widest hidden xl:block">
           + FAA PART 108 DIGITAL TWIN · DETERMINISTIC SAFETY ENGINE +
         </div>
-        <div className="absolute bottom-12 left-8 font-mono text-[9px] text-slate-400/30 select-none tracking-widest hidden xl:block">
+        <div className="absolute bottom-12 left-8 font-mono text-[9px] text-slate-500/50 font-semibold select-none tracking-widest hidden xl:block">
           + MULTI-FEED SENSOR INGESTION: MIREYE 345KV · UASFM · CENSUS · METAR +
         </div>
-        <div className="absolute bottom-12 right-8 font-mono text-[9px] text-slate-400/30 select-none tracking-widest hidden xl:block">
+        <div className="absolute bottom-12 right-8 font-mono text-[9px] text-slate-500/50 font-semibold select-none tracking-widest hidden xl:block">
           + BVLOS CORRIDOR SAMPLING: 400M STEP · 600M BUFFER +
         </div>
       </div>

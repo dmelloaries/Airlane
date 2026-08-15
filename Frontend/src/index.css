@@ -3,7 +3,7 @@
 @layer base {
   body {
     font-family: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background-color: #f6f8fa;
+    background-color: #ebedf2;
     color: #0f172a;
     min-height: 100vh;
     position: relative;
@@ -17,6 +17,12 @@
   .font-mono {
     font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   }
+
+  .font-serif,
+  .font-instrument {
+    font-family: "Instrument Serif", Georgia, Cambria, "Times New Roman", Times, serif;
+    letter-spacing: -0.01em;
+  }
 }
 
 /* -------------------------------------------------------------
@@ -24,46 +30,41 @@
    Layered precision coordinate grids, elevation contours & stipple
    ------------------------------------------------------------- */
 
-/* Master Aviation Grid: Fine subgrid + Crosshair ticks + Metric coordinate grid */
+/* Master Aviation Grid: Spacious, de-cluttered 80px blocks with crisp corner crosshairs */
 .bg-aviation-grid {
-  background-color: #f8fafc;
+  background-color: #ebedf2;
   background-image:
-    /* Crosshairs at major intersections */
-    radial-gradient(circle at 1px 1px, rgba(14, 165, 233, 0.35) 1.5px, transparent 1.5px),
-    /* Micro coordinate dots */
-    radial-gradient(circle at 1px 1px, rgba(100, 116, 139, 0.18) 1px, transparent 1px),
-    /* Fine 24px grid lines */
-    linear-gradient(to right, rgba(203, 213, 225, 0.35) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(203, 213, 225, 0.35) 1px, transparent 1px),
-    /* Major 96px coordinate boundary lines */
-    linear-gradient(to right, rgba(148, 163, 184, 0.22) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(148, 163, 184, 0.22) 1px, transparent 1px);
-  background-size: 96px 96px, 24px 24px, 24px 24px, 24px 24px, 96px 96px, 96px 96px;
-  background-position: 0 0, 0 0, 0 0, 0 0, 0 0, 0 0;
+    /* Clean Cyan Crosshairs at 80px intersections */
+    radial-gradient(circle at 1px 1px, rgba(2, 132, 199, 0.85) 2px, transparent 2px),
+    /* Spacious 80px clean engineering grid lines */
+    linear-gradient(to right, rgba(148, 163, 184, 0.45) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.45) 1px, transparent 1px);
+  background-size: 80px 80px, 80px 80px, 80px 80px;
+  background-position: 0 0, 0 0, 0 0;
 }
 
-/* Topographic Contour Texture (SVG Vector Elevation Curves) */
+/* Topographic Contour Texture (Minimalist, spacious 1000px elevation curves) */
 .bg-topographic-contours {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600' viewBox='0 0 600 600'%3E%3Cg fill='none' stroke='%2394a3b8' stroke-width='0.75' stroke-opacity='0.18'%3E%3Cpath d='M0,150 Q150,110 300,160 T600,140'/%3E%3Cpath d='M0,190 Q160,145 310,200 T600,180' stroke-dasharray='4,3'/%3E%3Cpath d='M0,230 Q170,185 320,240 T600,220'/%3E%3Cpath d='M0,320 Q200,260 400,340 T600,310'/%3E%3Cpath d='M0,360 Q210,295 410,380 T600,350' stroke-dasharray='6,4'/%3E%3Cpath d='M0,400 Q220,335 420,420 T600,390'/%3E%3Cpath d='M0,490 Q250,420 480,510 T600,480'/%3E%3Cpath d='M0,530 Q260,455 490,550 T600,520' stroke-dasharray='3,3'/%3E%3Cpath d='M120,0 Q90,180 140,360 T110,600'/%3E%3Cpath d='M280,0 Q240,190 300,380 T260,600' stroke-opacity='0.12'/%3E%3Cpath d='M440,0 Q410,200 460,390 T430,600'/%3E%3Ccircle cx='300' cy='300' r='180' stroke-opacity='0.1' stroke-dasharray='2,4'/%3E%3Ccircle cx='300' cy='300' r='260' stroke-opacity='0.08'/%3E%3C/g%3E%3C/svg%3E");
-  background-size: 600px 600px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1000' height='1000' viewBox='0 0 1000 1000'%3E%3Cg fill='none' stroke='%2364748b' stroke-width='1.2' stroke-opacity='0.22'%3E%3Cpath d='M0,250 Q300,180 600,280 T1000,240'/%3E%3Cpath d='M0,520 Q350,420 700,560 T1000,500' stroke-dasharray='8,6' stroke-opacity='0.18'/%3E%3Cpath d='M0,780 Q400,680 800,820 T1000,760'/%3E%3Ccircle cx='500' cy='500' r='380' stroke-opacity='0.12' stroke-dasharray='4,8'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 1000px 1000px;
 }
 
 /* Tactile Fine Blueprint Stipple / Noise Overlay */
 .bg-tactile-noise {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.035'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.045'/%3E%3C/svg%3E");
 }
 
 /* Ambient Aerospace Lighting Mesh */
 .ambient-glow-sky {
-  background: radial-gradient(circle 700px at 85% 15%, rgba(14, 165, 233, 0.12), transparent 70%);
+  background: radial-gradient(circle 700px at 85% 15%, rgba(14, 165, 233, 0.16), transparent 70%);
 }
 
 .ambient-glow-indigo {
-  background: radial-gradient(circle 650px at 15% 25%, rgba(99, 102, 241, 0.08), transparent 70%);
+  background: radial-gradient(circle 650px at 15% 25%, rgba(99, 102, 241, 0.12), transparent 70%);
 }
 
 .ambient-glow-emerald {
-  background: radial-gradient(circle 600px at 50% 90%, rgba(16, 185, 129, 0.07), transparent 70%);
+  background: radial-gradient(circle 600px at 50% 90%, rgba(16, 185, 129, 0.10), transparent 70%);
 }
 
 /* Technical Corner Markings for Cards and Containers */

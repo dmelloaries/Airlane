@@ -91,10 +91,10 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
             <span className="w-1.5 h-1.5 rounded-full bg-sky-600" />
             <span>FAA PART 108 BVLOS CORRIDOR ENGINE</span>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight font-display">
+          <h1 className="text-4xl sm:text-5xl lg:text-[46px] font-normal text-slate-900 tracking-tight font-instrument leading-[1.1]">
             Plan the safest route through the physical world.
           </h1>
-          <p className="text-sm text-slate-600 max-w-2xl font-normal leading-relaxed">
+          <p className="text-lg sm:text-xl text-slate-600 max-w-2xl font-normal leading-relaxed font-instrument">
             Airlane builds a real-time digital twin of terrain, airspace, infrastructure, population, and wind to determine the safest autonomous drone corridor.
           </p>
         </div>
