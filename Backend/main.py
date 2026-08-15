@@ -445,6 +445,7 @@ async def stream_pipeline(
                 "obstacles": obs_a,
                 "landing_zones": lz_a,
                 "environmental_risk": env_a,
+                "wind": wind_a,
                 "total_distance_m": corr_a.total_distance_m
             },
             "corridor_b": {
@@ -455,6 +456,7 @@ async def stream_pipeline(
                 "obstacles": obs_b,
                 "landing_zones": lz_b,
                 "environmental_risk": env_b,
+                "wind": wind_b,
                 "total_distance_m": corr_b.total_distance_m
             },
             "corridor_c": {
@@ -465,6 +467,7 @@ async def stream_pipeline(
                 "obstacles": obs_c,
                 "landing_zones": lz_c,
                 "environmental_risk": env_c,
+                "wind": wind_c,
                 "total_distance_m": corr_c.total_distance_m
             },
             "comparison": comparison

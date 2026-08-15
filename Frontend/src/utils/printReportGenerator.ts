@@ -318,7 +318,7 @@ export function openPrintableReport(result: AnalysisResult): void {
     <!-- 2. AUTONOMOUS VERDICT & JUSTIFICATION -->
     <div class="section-title">
       <span>2. Autonomous Verdict & Safety Case</span>
-      <span class="badge badge-verified">TIER 1 MINIMAL RISK</span>
+      <span class="badge badge-verified">${data.verdict_and_safety_case.part108_tier.toUpperCase()}</span>
     </div>
 
     <div class="card-highlight">
@@ -432,7 +432,7 @@ export function openPrintableReport(result: AnalysisResult): void {
     <!-- 5. DESIGNATED EMERGENCY LANDING SITES -->
     <div class="section-title">
       <span>5. Designated Emergency Forced-Landing Sites (LZ)</span>
-      <span class="badge badge-verified">2 LZ Designated</span>
+      <span class="badge badge-verified">${data.emergency_landing_sites.length} Designated</span>
     </div>
 
     <table>

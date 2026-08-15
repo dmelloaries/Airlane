@@ -299,12 +299,12 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
     }).bindPopup(`
       <div style="font-family: sans-serif; font-size: 12px; color: #0f172a; padding: 2px;">
         <div style="font-family: monospace; font-size: 10px; font-weight: bold; color: #0284c7; text-transform: uppercase;">
-          ★ RECOMMENDED FLIGHT CORRIDOR (ALPHA)
+          ★ RECOMMENDED FLIGHT CORRIDOR
         </div>
-        <strong>Corridor Alpha (Direct & Safe Detour)</strong><br/>
-        <span>Distance: ${(winnerCorr?.total_distance_m || 4820) / 1000} km (${(((winnerCorr?.total_distance_m || 4820) / 1609.34)).toFixed(2)} mi)</span><br/>
+        <strong>${winnerCorr?.name || "Recommended Corridor"}</strong><br/>
+        <span>Distance: ${winnerCorr ? `${(winnerCorr.total_distance_m / 1000).toFixed(2)} km (${(winnerCorr.total_distance_m / 1609.34).toFixed(2)} mi)` : "N/A"}</span><br/>
         <div style="font-size: 11px; color: #0369a1; margin-top: 3px; font-weight: 500;">
-          Verified zero critical conflicts, Tier 1 ground population risk, and 68.3m lateral wire clearance.
+          ${result.safety_case?.primary_justification || "Recommended autonomous BVLOS flight corridor."}
         </div>
       </div>
     `);

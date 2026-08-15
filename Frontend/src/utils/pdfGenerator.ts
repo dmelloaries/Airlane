@@ -372,7 +372,7 @@ export async function generatePart108Pdf(result: AnalysisResult, customFilename?
       if (isRec) {
         pdf.drawBadge("RECOMMENDED", 495, y + 3, [0.1, 0.6, 0.35], [1, 1, 1], 6.5);
       } else {
-        pdf.drawBadge("REJECTED", 505, y + 3, [0.8, 0.2, 0.2], [1, 1, 1], 6.5);
+      pdf.drawBadge("REJECTED", 505, y + 3, [0.8, 0.2, 0.2], [1, 1, 1], 6.5);
       }
       y += 20;
     });
@@ -383,12 +383,18 @@ export async function generatePart108Pdf(result: AnalysisResult, customFilename?
     pdf.drawText("AI DECISION LOG & REJECTION RATIONALE", 40, y, { font: "F2", size: 9, color: [0.06, 0.12, 0.22] });
     y += 12;
 
-    pdf.drawRect(40, y, 532, 70, [0.98, 0.98, 0.99], [0.85, 0.88, 0.92], 1);
-    pdf.drawText("• Corridor Beta (Rejected): " + (data.candidate_corridors_comparison.find(c => c.id === "corridor_b")?.rejection_reason || "Passes within 45m of 345kV transmission tower #4B."), 50, y + 12, { font: "F1", size: 8, color: [0.3, 0.35, 0.4] });
-    pdf.drawText("  Authoritative Source: Mireye Earth API (345kV High Voltage Grid Layer · Proximity Violation)", 50, y + 24, { font: "F3", size: 7.5, color: [0.6, 0.2, 0.2] });
+    const rejectedCorridors = data.candidate_corridors_comparison.filter((c) => c.status === "REJECTED");
+    const logBoxHeight = Math.max(50, rejectedCorridors.length * 28 + 16);
+    pdf.drawRect(40, y, 532, logBoxHeight, [0.98, 0.98, 0.99], [0.85, 0.88, 0.92], 1);
 
-    pdf.drawText("• Corridor Gamma (Rejected): " + (data.candidate_corridors_comparison.find(c => c.id === "corridor_c")?.rejection_reason || "Traverses higher density census tract near municipal boundary."), 50, y + 42, { font: "F1", size: 8, color: [0.3, 0.35, 0.4] });
-    pdf.drawText("  Authoritative Source: U.S. Census Bureau 2020 Block Groups (Elevated Ground Risk Tier 3)", 50, y + 54, { font: "F3", size: 7.5, color: [0.6, 0.2, 0.2] });
+    if (rejectedCorridors.length > 0) {
+      rejectedCorridors.forEach((rej, rIdx) => {
+        pdf.drawText(`• ${rej.name} (Rejected): ${rej.rejection_reason || "Sub-optimal risk metrics relative to recommended corridor."}`, 50, y + 10 + rIdx * 28, { font: "F1", size: 8, color: [0.3, 0.35, 0.4] });
+        pdf.drawText(`  Authoritative Decision Source: FAA Part 108 / SORA 2.5 Multi-Objective Objective Function`, 50, y + 22 + rIdx * 28, { font: "F3", size: 7.5, color: [0.6, 0.2, 0.2] });
+      });
+    } else {
+      pdf.drawText("• All evaluated candidate corridors met baseline airworthiness criteria.", 50, y + 14, { font: "F1", size: 8, color: [0.3, 0.35, 0.4] });
+    }
 
     // ================= PAGE 2: COMPLETE HAZARDS & INFRASTRUCTURE REGISTER =================
     pdf.newPage();
@@ -450,10 +456,8 @@ export async function generatePart108Pdf(result: AnalysisResult, customFilename?
         pdf.drawBadge("MITIGATED", 390, y + 8, [0.1, 0.6, 0.35], [1, 1, 1], 6.5);
       }
 
-      pdf.drawText("Mireye Earth API", 460, y + 8, { font: "F2", size: 7.5, color: [0.06, 0.12, 0.22] });
-      pdf.drawText("High Voltage Grid Layer", 460, y + 19, { font: "F1", size: 6.5, color: [0.4, 0.45, 0.5] });
-      pdf.drawText("VERIFIED INGESTION", 460, y + 28, { font: "F3", size: 6, color: [0.1, 0.5, 0.3] });
-
+      pdf.drawText(haz.authoritative_source, 460, y + 10, { font: "F3", size: 6.5, color: [0.3, 0.35, 0.4] });
+      pdf.drawText(haz.clearance_status, 460, y + 22, { font: "F1", size: 6.5, color: [0.2, 0.5, 0.3] });
       y += 38;
     });
 
@@ -525,39 +529,45 @@ export async function generatePart108Pdf(result: AnalysisResult, customFilename?
 
     const gridW = (532 - 12) / 2;
 
-    // Box 1: FAA UASFM Airspace
+    // Box 1: FAA UASFM Airspace (Dynamic from real analysis data)
+    const faa = data.airspace_and_market_clearances.faa_uasfm;
     pdf.drawRect(40, y, gridW, 60, [0.98, 0.99, 1], [0.85, 0.9, 0.95], 1);
     pdf.drawText("FAA UAS FACILITY MAP (UASFM)", 50, y + 10, { font: "F2", size: 8, color: [0.06, 0.12, 0.22] });
-    pdf.drawBadge("400FT CEILING COMPLIANT", 50 + gridW - 130, y + 6, [0.1, 0.55, 0.3], [1, 1, 1], 6);
-    pdf.drawText("• Airspace: Class D / Class G Boundary (KPAO Surface Ring)", 50, y + 24, { font: "F1", size: 7.5, color: [0.3, 0.35, 0.4] });
-    pdf.drawText("• Enforced Altitude: 300ft AGL (100ft buffer below ceiling)", 50, y + 36, { font: "F1", size: 7.5, color: [0.3, 0.35, 0.4] });
-    pdf.drawText("• Data Source: FAA UASFM ArcGIS Feature Server", 50, y + 48, { font: "F3", size: 7, color: [0.1, 0.5, 0.3] });
+    pdf.drawBadge(`${faa.ceiling_ft_agl}FT ${faa.status}`, 50 + gridW - 130, y + 6, [0.1, 0.55, 0.3], [1, 1, 1], 6);
+    pdf.drawText(`• Airspace: ${faa.airspace_class}`, 50, y + 24, { font: "F1", size: 7.5, color: [0.3, 0.35, 0.4] });
+    pdf.drawText(`• Enforced Altitude: ${data.mission_profile.parameters.cruise_altitude_ft}ft AGL (${faa.flight_altitude_buffer_ft}ft buffer below ceiling)`, 50, y + 36, { font: "F1", size: 7.5, color: [0.3, 0.35, 0.4] });
+    pdf.drawText(`• Data Source: ${faa.source}`, 50, y + 48, { font: "F3", size: 7, color: [0.1, 0.5, 0.3] });
 
-    // Box 2: NOAA METAR Weather
+    // Box 2: NOAA METAR Weather (Dynamic from real analysis data)
+    const noaa = data.airspace_and_market_clearances.meteorological_noaa_metar;
     pdf.drawRect(40 + gridW + 12, y, gridW, 60, [0.98, 0.99, 1], [0.85, 0.9, 0.95], 1);
     pdf.drawText("NOAA METAR AVIATION WEATHER", 50 + gridW + 12, y + 10, { font: "F2", size: 8, color: [0.06, 0.12, 0.22] });
-    pdf.drawBadge("SAFE (8KT NW)", 50 + gridW * 2 - 80, y + 6, [0.1, 0.55, 0.3], [1, 1, 1], 6);
-    pdf.drawText("• Wind Speed: 8 kts NW · Peak Gusts: 11 kts (Limit: 20 kts)", 50 + gridW + 12, y + 24, { font: "F1", size: 7.5, color: [0.3, 0.35, 0.4] });
-    pdf.drawText("• Flight Safety Status: Approved for Small/Medium UAV", 50 + gridW + 12, y + 36, { font: "F1", size: 7.5, color: [0.3, 0.35, 0.4] });
-    pdf.drawText("• Data Source: NOAA Aviation Weather REST API (KPAO Station)", 50 + gridW + 12, y + 48, { font: "F3", size: 7, color: [0.1, 0.5, 0.3] });
+    const noaaBadgeColor: [number, number, number] = noaa.drone_class_safe ? [0.1, 0.55, 0.3] : [0.8, 0.2, 0.2];
+    pdf.drawBadge(`${noaa.status} (${noaa.surface_wind_kts}KT)`, 50 + gridW * 2 - 80, y + 6, noaaBadgeColor, [1, 1, 1], 6);
+    pdf.drawText(`• Wind Speed: ${noaa.surface_wind_kts} kts · Peak Gusts: ${noaa.wind_gust_kts} kts`, 50 + gridW + 12, y + 24, { font: "F1", size: 7.5, color: [0.3, 0.35, 0.4] });
+    pdf.drawText(`• Flight Safety Status: ${noaa.drone_class_safe ? "Approved for Drone Flight Envelope" : "Exceeds Safety Envelope"}`, 50 + gridW + 12, y + 36, { font: "F1", size: 7.5, color: [0.3, 0.35, 0.4] });
+    pdf.drawText(`• Data Source: ${noaa.source} (${noaa.station_id})`, 50 + gridW + 12, y + 48, { font: "F3", size: 7, color: [0.1, 0.5, 0.3] });
 
     y += 70;
 
-    // Box 3: US Census Population
+    // Box 3: US Census Population (Dynamic from real analysis data)
+    const pop = data.airspace_and_market_clearances.population_density_ground_risk;
     pdf.drawRect(40, y, gridW, 60, [0.98, 0.99, 1], [0.85, 0.9, 0.95], 1);
     pdf.drawText("U.S. CENSUS GROUND RISK TIERS", 50, y + 10, { font: "F2", size: 8, color: [0.06, 0.12, 0.22] });
-    pdf.drawBadge("TIER 1 LOW RISK", 50 + gridW - 95, y + 6, [0.1, 0.55, 0.3], [1, 1, 1], 6);
-    pdf.drawText("• Max Density: 180 persons/sq mi (<250 threshold)", 50, y + 24, { font: "F1", size: 7.5, color: [0.3, 0.35, 0.4] });
-    pdf.drawText("• Points Sampled: 12 census block group centroids", 50, y + 36, { font: "F1", size: 7.5, color: [0.3, 0.35, 0.4] });
-    pdf.drawText("• Data Source: U.S. Census Bureau API 2020", 50, y + 48, { font: "F3", size: 7, color: [0.1, 0.5, 0.3] });
+    const popBadgeColor: [number, number, number] = pop.dominant_tier.toLowerCase().includes("tier 1") || pop.dominant_tier.toLowerCase().includes("tier 2") ? [0.1, 0.55, 0.3] : [0.8, 0.4, 0.1];
+    pdf.drawBadge(pop.dominant_tier.toUpperCase(), 50 + gridW - 95, y + 6, popBadgeColor, [1, 1, 1], 6);
+    pdf.drawText(`• Max Density: ${pop.max_density_sq_mi.toLocaleString()} persons/sq mi`, 50, y + 24, { font: "F1", size: 7.5, color: [0.3, 0.35, 0.4] });
+    pdf.drawText(`• Points Sampled: ${pop.points_evaluated} census sample points`, 50, y + 36, { font: "F1", size: 7.5, color: [0.3, 0.35, 0.4] });
+    pdf.drawText(`• Data Source: ${pop.source}`, 50, y + 48, { font: "F3", size: 7, color: [0.1, 0.5, 0.3] });
 
-    // Box 4: Air Rights & Market Corridor
+    // Box 4: Air Rights & Market Corridor (Dynamic from real analysis data)
+    const airRights = data.airspace_and_market_clearances.air_rights_and_market_corridors;
     pdf.drawRect(40 + gridW + 12, y, gridW, 60, [0.98, 0.99, 1], [0.85, 0.9, 0.95], 1);
     pdf.drawText("AIR RIGHTS & RIGHT-OF-WAY EASEMENTS", 50 + gridW + 12, y + 10, { font: "F2", size: 8, color: [0.06, 0.12, 0.22] });
-    pdf.drawBadge("AUTHORIZED", 50 + gridW * 2 - 75, y + 6, [0.1, 0.55, 0.3], [1, 1, 1], 6);
-    pdf.drawText("• Municipal Easements: Silicon Valley Utility Route", 50 + gridW + 12, y + 24, { font: "F1", size: 7.5, color: [0.3, 0.35, 0.4] });
-    pdf.drawText("• Telecom Buffers: >50m Separation from relays", 50 + gridW + 12, y + 36, { font: "F1", size: 7.5, color: [0.3, 0.35, 0.4] });
-    pdf.drawText("• Data Source: Mireye Earth API & Municipal Registries", 50 + gridW + 12, y + 48, { font: "F3", size: 7, color: [0.1, 0.5, 0.3] });
+    pdf.drawBadge(airRights.easement_status, 50 + gridW * 2 - 75, y + 6, [0.1, 0.55, 0.3], [1, 1, 1], 6);
+    pdf.drawText(`• Municipal Easements: ${airRights.municipal_rights_of_way}`, 50 + gridW + 12, y + 24, { font: "F1", size: 7.5, color: [0.3, 0.35, 0.4] });
+    pdf.drawText(`• Telecom Buffers: ${airRights.telecom_safe_buffer}`, 50 + gridW + 12, y + 36, { font: "F1", size: 7.5, color: [0.3, 0.35, 0.4] });
+    pdf.drawText(`• Data Source: ${airRights.source}`, 50 + gridW + 12, y + 48, { font: "F3", size: 7, color: [0.1, 0.5, 0.3] });
 
     y += 74;
 

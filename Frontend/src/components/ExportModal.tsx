@@ -19,10 +19,19 @@ export const ExportModal: React.FC<ExportModalProps> = ({ result, onClose }) => 
   const [copiedStatus, setCopiedStatus] = useState<boolean>(false);
   const [downloadSuccessMessage, setDownloadSuccessMessage] = useState<string | null>(null);
 
-  const formattedData = buildFormattedPart108Json(result);
-  const formattedJsonString = JSON.stringify(formattedData, null, 2);
+  let formattedData: ReturnType<typeof buildFormattedPart108Json> | null = null;
+  let formatError: string | null = null;
+
+  try {
+    formattedData = buildFormattedPart108Json(result);
+  } catch (err: any) {
+    formatError = err?.message || "Failed to format analysis result for export.";
+  }
+
+  const formattedJsonString = formattedData ? JSON.stringify(formattedData, null, 2) : "";
 
   const handleDownloadJson = async () => {
+    if (!formattedData) return;
     const success = await downloadJsonFile(formattedData);
     if (success) {
       setDownloadSuccessMessage("Part 108 JSON saved successfully!");
@@ -31,6 +40,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({ result, onClose }) => 
   };
 
   const handleDownloadPdf = async () => {
+    if (!result) return;
     const success = await generatePart108Pdf(result);
     if (success) {
       setDownloadSuccessMessage("Official FAA Part 108 PDF generated & saved successfully!");
@@ -39,12 +49,40 @@ export const ExportModal: React.FC<ExportModalProps> = ({ result, onClose }) => 
   };
 
   const handleCopyJson = async () => {
+    if (!formattedData) return;
     const success = await copyJsonToClipboard(formattedData);
     if (success) {
       setCopiedStatus(true);
       setTimeout(() => setCopiedStatus(false), 3000);
     }
   };
+
+  if (formatError || !formattedData) {
+    return (
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs font-sans">
+        <div className="w-full max-w-lg bg-white rounded-xl border border-rose-200 shadow-2xl p-6 space-y-4">
+          <div className="flex items-center gap-3 text-rose-600">
+            <span className="text-2xl">⚠️</span>
+            <h3 className="text-base font-bold font-display">Export Dossier Generation Failed</h3>
+          </div>
+          <p className="text-xs text-slate-600 leading-relaxed font-mono bg-rose-50 p-3 rounded-lg border border-rose-200">
+            {formatError || "The analysis result does not contain valid computed telemetry required for FAA Part 108 filing."}
+          </p>
+          <p className="text-xs text-slate-500">
+            Silent fake fallbacks are disabled. Please run a live analysis with active backend connection.
+          </p>
+          <div className="flex justify-end pt-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-mono font-bold rounded-lg transition-colors cursor-pointer"
+            >
+              CLOSE
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150 font-sans">
@@ -334,52 +372,52 @@ export const ExportModal: React.FC<ExportModalProps> = ({ result, onClose }) => 
                     <div className="flex justify-between items-center mb-1">
                       <span className="font-bold text-slate-900">FAA UASFM AIRSPACE</span>
                       <span className="text-[9px] font-bold bg-emerald-50 text-emerald-800 px-1 py-0.2 rounded border border-emerald-200">
-                        COMPLIANT
+                        {formattedData.airspace_and_market_clearances.faa_uasfm.status}
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-600">
-                      Class D / Class G boundary. Capped at 300ft AGL cruise (100ft buffer below 400ft ceiling).
+                      {formattedData.airspace_and_market_clearances.faa_uasfm.airspace_class}. Ceiling {formattedData.airspace_and_market_clearances.faa_uasfm.ceiling_ft_agl}ft AGL ({formattedData.airspace_and_market_clearances.faa_uasfm.flight_altitude_buffer_ft}ft vertical margin).
                     </p>
-                    <div className="text-[10px] text-slate-400 mt-1">Source: FAA UAS Facility Map ArcGIS</div>
+                    <div className="text-[10px] text-slate-400 mt-1">Source: {formattedData.airspace_and_market_clearances.faa_uasfm.source}</div>
                   </div>
 
                   <div className="p-2.5 rounded bg-slate-50 border border-slate-200">
                     <div className="flex justify-between items-center mb-1">
                       <span className="font-bold text-slate-900">NOAA METAR WINDS</span>
-                      <span className="text-[9px] font-bold bg-emerald-50 text-emerald-800 px-1 py-0.2 rounded border border-emerald-200">
-                        SAFE (8KT)
+                      <span className={`text-[9px] font-bold px-1 py-0.2 rounded border ${formattedData.airspace_and_market_clearances.meteorological_noaa_metar.drone_class_safe ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-rose-50 text-rose-800 border-rose-200"}`}>
+                        {formattedData.airspace_and_market_clearances.meteorological_noaa_metar.status} ({formattedData.airspace_and_market_clearances.meteorological_noaa_metar.surface_wind_kts}KT)
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-600">
-                      Surface wind 8 kts NW, gusts 11 kts. Safe within 20 kt envelope for small UAV.
+                      Surface wind {formattedData.airspace_and_market_clearances.meteorological_noaa_metar.surface_wind_kts} kts, gusts {formattedData.airspace_and_market_clearances.meteorological_noaa_metar.wind_gust_kts} kts. {formattedData.airspace_and_market_clearances.meteorological_noaa_metar.drone_class_safe ? "Safe within operational flight envelope." : "Exceeds flight envelope."}
                     </p>
-                    <div className="text-[10px] text-slate-400 mt-1">Source: NOAA Aviation Weather KPAO</div>
+                    <div className="text-[10px] text-slate-400 mt-1">Source: {formattedData.airspace_and_market_clearances.meteorological_noaa_metar.source} ({formattedData.airspace_and_market_clearances.meteorological_noaa_metar.station_id})</div>
                   </div>
 
                   <div className="p-2.5 rounded bg-slate-50 border border-slate-200">
                     <div className="flex justify-between items-center mb-1">
                       <span className="font-bold text-slate-900">CENSUS GROUND RISK</span>
                       <span className="text-[9px] font-bold bg-emerald-50 text-emerald-800 px-1 py-0.2 rounded border border-emerald-200">
-                        TIER 1 MINIMAL
+                        {formattedData.airspace_and_market_clearances.population_density_ground_risk.dominant_tier.toUpperCase()}
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-600">
-                      Population density 180 / sq mi across route block groups (well below 250 threshold).
+                      Peak density {formattedData.airspace_and_market_clearances.population_density_ground_risk.max_density_sq_mi.toLocaleString()} ppl / sq mi across {formattedData.airspace_and_market_clearances.population_density_ground_risk.points_evaluated} census sample points.
                     </p>
-                    <div className="text-[10px] text-slate-400 mt-1">Source: U.S. Census Bureau 2020</div>
+                    <div className="text-[10px] text-slate-400 mt-1">Source: {formattedData.airspace_and_market_clearances.population_density_ground_risk.source}</div>
                   </div>
 
                   <div className="p-2.5 rounded bg-slate-50 border border-slate-200">
                     <div className="flex justify-between items-center mb-1">
                       <span className="font-bold text-slate-900">AIR RIGHTS EASEMENTS</span>
                       <span className="text-[9px] font-bold bg-emerald-50 text-emerald-800 px-1 py-0.2 rounded border border-emerald-200">
-                        AUTHORIZED
+                        {formattedData.airspace_and_market_clearances.air_rights_and_market_corridors.easement_status}
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-600">
-                      Silicon Valley public utility corridors and municipal transit right-of-way alignment.
+                      {formattedData.airspace_and_market_clearances.air_rights_and_market_corridors.municipal_rights_of_way} · {formattedData.airspace_and_market_clearances.air_rights_and_market_corridors.telecom_safe_buffer}
                     </p>
-                    <div className="text-[10px] text-slate-400 mt-1">Source: Mireye Earth API & Municipal Layer</div>
+                    <div className="text-[10px] text-slate-400 mt-1">Source: {formattedData.airspace_and_market_clearances.air_rights_and_market_corridors.source}</div>
                   </div>
                 </div>
               </div>

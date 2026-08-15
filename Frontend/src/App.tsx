@@ -396,29 +396,46 @@ export default function App() {
     setIsStreaming(true);
     setActiveView("executing");
 
-    // If server is online, stream from backend. If offline, execute rich simulated stream.
-    if (serverStatus === "online") {
-      const unsubscribe = streamAnalysis(payload, {
-        onTrace: (event: TraceEvent) => {
-          setTraceEvents((prev) => [...prev, event]);
-        },
-        onComplete: (result: AnalysisResult) => {
-          setAnalysisResult(result);
-          setIsStreaming(false);
-          setActiveView("results");
-        },
-        onError: async () => {
-          // Fallback to simulated execution if SSE drops
-          executeSimulatedPipeline(payload);
-        },
-      });
-      setCancelStream(() => unsubscribe);
-    } else {
+    const isDevMockExplicitlyEnabled = import.meta.env.VITE_USE_MOCK_FIXTURE === "true";
+
+    // Hard Guard: Mock fixtures are strictly restricted to explicit dev-only testing
+    if (isDevMockExplicitlyEnabled) {
+      console.warn("⚠️ [DEV MODE] VITE_USE_MOCK_FIXTURE is active. Executing simulated dev pipeline.");
       executeSimulatedPipeline(payload);
+      return;
     }
+
+    if (serverStatus === "offline") {
+      setIsStreaming(false);
+      setActiveView("input");
+      setErrorMessage(
+        "Backend API Server Offline: Live route analysis requires the Airlane backend (http://localhost:8000). Please start the backend service (`python -m uvicorn main:app --port 8000`) and retry. Silent mock fallbacks are permanently disabled."
+      );
+      return;
+    }
+
+    const unsubscribe = streamAnalysis(payload, {
+      onTrace: (event: TraceEvent) => {
+        setTraceEvents((prev) => [...prev, event]);
+      },
+      onComplete: (result: AnalysisResult) => {
+        setAnalysisResult(result);
+        setIsStreaming(false);
+        setActiveView("results");
+      },
+      onError: (err: string) => {
+        // Fail Loudly: Never silently substitute fake mock data on connection drops or backend errors
+        setIsStreaming(false);
+        setActiveView("input");
+        setErrorMessage(
+          `BVLOS Route Analysis Error: ${err}. Real pipeline sensor data could not be computed. Please check your backend logs and retry.`
+        );
+      },
+    });
+    setCancelStream(() => unsubscribe);
   };
 
-  // High-fidelity progressive pipeline simulation with full telemetry & reasoning
+  // High-fidelity progressive pipeline simulation (strictly DEV-ONLY gated by VITE_USE_MOCK_FIXTURE)
   const executeSimulatedPipeline = (payload: MissionInputPayload) => {
     const simSteps: Array<Omit<TraceEvent, "timestamp">> = [
       {

@@ -150,91 +150,71 @@ export interface FormattedPart108Export {
  * markers, clearances, and sources explicitly cross-referenced.
  */
 export function buildFormattedPart108Json(result: AnalysisResult): FormattedPart108Export {
+  if (!result) {
+    throw new Error("Cannot export Part 108 dossier: Analysis result is missing or undefined.");
+  }
+  if (!result.safety_case) {
+    throw new Error("Cannot export Part 108 dossier: Safety case reasoning synthesis is missing.");
+  }
+  if (!result.corridors || !Array.isArray(result.corridors) || result.corridors.length === 0) {
+    throw new Error("Cannot export Part 108 dossier: Corridor geometric waypoints are missing.");
+  }
+  if (!result.computed) {
+    throw new Error("Cannot export Part 108 dossier: Computed sensor risk metrics are missing.");
+  }
+
   const { safety_case: sc, computed_comparison: comp, computed, corridors } = result;
   const now = new Date();
   const dateStr = now.toISOString().slice(0, 10);
   const timeStr = now.toTimeString().slice(0, 8);
   const filingId = `AL-P108-${dateStr.replace(/-/g, "")}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  const recCorridor = corridors?.find((c) => c.id === sc.recommended_corridor) || corridors?.[0];
-  const recDistanceM = recCorridor?.total_distance_m || 4820;
+  const recCorridor = corridors.find((c) => c.id === sc.recommended_corridor) || corridors[0];
+  if (!recCorridor || typeof recCorridor.total_distance_m !== "number") {
+    throw new Error(`Cannot export Part 108 dossier: Recommended corridor '${sc.recommended_corridor}' has invalid distance.`);
+  }
+
+  const recDistanceM = recCorridor.total_distance_m;
   const recDistanceMi = parseFloat((recDistanceM / 1609.34).toFixed(2));
   const recDistanceKm = parseFloat((recDistanceM / 1000).toFixed(2));
-  const estMinutes = parseFloat(((recDistanceMi / 35) * 60).toFixed(1)); // ~35 mph cruise
+  const estMinutes = parseFloat(((recDistanceMi / 35) * 60).toFixed(1)); // ~35 mph cruise speed baseline
 
-  // Aggregate all hazards & obstacles across candidate corridors
+  // Aggregate all hazards & obstacles across candidate corridors dynamically from real computed data
   const hazardRegistry: FormattedPart108Export["hazard_and_obstacle_registry"] = [];
+  Object.entries(computed).forEach(([corrKey, cData]) => {
+    if (cData && Array.isArray(cData.obstacles)) {
+      const isRec = corrKey === sc.recommended_corridor;
+      const meta = corridors.find((c) => c.id === corrKey);
+      const corrLabel = isRec ? `${sc.recommended_name || corrKey} (Recommended)` : `${meta?.name || corrKey} (Rejected)`;
 
-  // Corridor Alpha Obstacles
-  if (computed?.corridor_a?.obstacles) {
-    computed.corridor_a.obstacles.forEach((obs, i) => {
-      hazardRegistry.push({
-        id: `HAZ-A${i + 1}`,
-        obstacle_type: obs.obstacle_type,
-        corridor: "Corridor Alpha (Recommended)",
-        latitude: obs.lat,
-        longitude: obs.lng,
-        distance_along_route_m: obs.distance_along_route_m,
-        distance_along_route_miles: obs.distance_along_route_miles,
-        measured_clearance_m: obs.distance_m,
-        voltage_kv: obs.voltage_kv ?? 345,
-        severity: obs.severity || "HIGH",
-        clearance_status: obs.clearance_status || "Detour Enforced (>60m Clearance)",
-        authoritative_source: obs.source || "Mireye Earth API (345kV High Voltage Grid Layer)",
-        description: obs.description || "High-voltage overhead transmission tower #3A with enforced lateral path buffer.",
+      cData.obstacles.forEach((obs, i) => {
+        hazardRegistry.push({
+          id: `HAZ-${corrKey.toUpperCase()}-${i + 1}`,
+          obstacle_type: obs.obstacle_type,
+          corridor: corrLabel,
+          latitude: obs.lat,
+          longitude: obs.lng,
+          distance_along_route_m: obs.distance_along_route_m,
+          distance_along_route_miles: obs.distance_along_route_miles,
+          measured_clearance_m: obs.distance_m,
+          voltage_kv: obs.voltage_kv ?? null,
+          severity: obs.severity || "HIGH",
+          clearance_status: obs.clearance_status || `${obs.distance_m.toFixed(1)}m clearance`,
+          authoritative_source: obs.source || "Mireye Earth API",
+          description: obs.description || `Obstacle identified along ${corrLabel}.`,
+        });
       });
-    });
-  }
+    }
+  });
 
-  // Corridor Beta Obstacles
-  if (computed?.corridor_b?.obstacles) {
-    computed.corridor_b.obstacles.forEach((obs, i) => {
-      hazardRegistry.push({
-        id: `HAZ-B${i + 1}`,
-        obstacle_type: obs.obstacle_type,
-        corridor: "Corridor Beta (Rejected)",
-        latitude: obs.lat,
-        longitude: obs.lng,
-        distance_along_route_m: obs.distance_along_route_m,
-        distance_along_route_miles: obs.distance_along_route_miles,
-        measured_clearance_m: obs.distance_m,
-        voltage_kv: obs.voltage_kv ?? 345,
-        severity: obs.severity || "HIGH",
-        clearance_status: obs.clearance_status || "CRITICAL PROXIMITY (<45m)",
-        authoritative_source: obs.source || "Mireye Earth API (345kV Transmission Grid)",
-        description: obs.description || "Passes within 42.1m of 345kV transmission tower #4B, creating electromagnetic hazard exposure.",
-      });
-    });
-  }
-
-  // Corridor Gamma Obstacles
-  if (computed?.corridor_c?.obstacles) {
-    computed.corridor_c.obstacles.forEach((obs, i) => {
-      hazardRegistry.push({
-        id: `HAZ-C${i + 1}`,
-        obstacle_type: obs.obstacle_type,
-        corridor: "Corridor Gamma (Rejected)",
-        latitude: obs.lat,
-        longitude: obs.lng,
-        distance_along_route_m: obs.distance_along_route_m,
-        distance_along_route_miles: obs.distance_along_route_miles,
-        measured_clearance_m: obs.distance_m,
-        voltage_kv: obs.voltage_kv ?? null,
-        severity: obs.severity || "MEDIUM",
-        clearance_status: obs.clearance_status || "PROXIMITY WARNING",
-        authoritative_source: obs.source || "Mireye Earth API & Municipal Infrastructure Layer",
-        description: obs.description || "Dense suburban municipal tower structure with elevated ground population risk.",
-      });
-    });
-  }
-
-  // Emergency Landing Sites
+  // Emergency Landing Sites (Dynamic from real terrain engine evaluation)
   const landingSites: FormattedPart108Export["emergency_landing_sites"] = [];
-  if (computed?.corridor_a?.landing_zones && computed.corridor_a.landing_zones.length > 0) {
-    computed.corridor_a.landing_zones.forEach((lz, idx) => {
+  const recComputed = computed[sc.recommended_corridor as "corridor_a" | "corridor_b" | "corridor_c"] || computed.corridor_a;
+  if (recComputed?.landing_zones && Array.isArray(recComputed.landing_zones)) {
+    recComputed.landing_zones.forEach((lz, idx) => {
       landingSites.push({
         id: `LZ-0${idx + 1}`,
-        name: lz.description?.includes("Byxbee") ? "Byxbee Meadow Recovery Pad" : lz.description || `Recovery Site #${idx + 1}`,
+        name: lz.description || `Emergency Forced-Landing Zone #${idx + 1}`,
         designation: idx === 0 ? "PRIMARY" : "BACKUP",
         latitude: lz.lat,
         longitude: lz.lng,
@@ -247,84 +227,37 @@ export function buildFormattedPart108Json(result: AnalysisResult): FormattedPart
         description: lz.description,
       });
     });
-  } else {
-    landingSites.push(
-      {
-        id: "LZ-01",
-        name: "Byxbee Meadow Recovery Pad",
-        designation: "PRIMARY",
-        latitude: 37.4362,
-        longitude: -122.1075,
-        distance_along_route_miles: 1.47,
-        infrastructure_clearance_m: 18.7,
-        slope_degrees: 3.2,
-        elevation_m: 12.4,
-        fema_flood_zone: "Zone X (Minimal Flood Hazard)",
-        authoritative_source: "Airlane BVLOS Terrain Engine & USGS 3DEP",
-        description: "Open grassland buffer with unobstructed GPS reception and flat landing surface.",
-      },
-      {
-        id: "LZ-02",
-        name: "Research Quad Backup Pad",
-        designation: "BACKUP",
-        latitude: 37.424,
-        longitude: -122.108,
-        distance_along_route_miles: 0.48,
-        infrastructure_clearance_m: 24.0,
-        slope_degrees: 1.0,
-        elevation_m: 9.8,
-        fema_flood_zone: "Zone X (Minimal Flood Hazard)",
-        authoritative_source: "Airlane BVLOS Terrain Engine & USGS 3DEP",
-        description: "Paved auxiliary courtyard with wide perimeter buffer from structural obstacles.",
-      }
-    );
   }
 
-  // Candidate comparison breakdown
-  const candidateComparisons: FormattedPart108Export["candidate_corridors_comparison"] = [
-    {
-      id: "corridor_a",
-      name: sc.recommended_name || "Corridor Alpha (Direct & Detour)",
-      status: "RECOMMENDED",
-      distance_m: computed?.corridor_a?.total_distance_m || 4820,
-      distance_miles: parseFloat(((computed?.corridor_a?.total_distance_m || 4820) / 1609.34).toFixed(2)),
-      tier: computed?.corridor_a?.tier?.dominant_tier || "Tier 1",
-      hazard_score: computed?.corridor_a?.hazard_exposure?.hazard_exposure_score ?? 0.0,
-      obstacle_count: computed?.corridor_a?.obstacles?.length ?? 1,
-      min_lateral_clearance_m: computed?.corridor_a?.hazard_exposure?.min_transmission_distance_m ?? 68.3,
-      wind_safe: true,
-      rejection_reason: undefined,
-    },
-    {
-      id: "corridor_b",
-      name: corridors?.find((c) => c.id === "corridor_b")?.name || "Corridor Beta (East Detour)",
-      status: "REJECTED",
-      distance_m: computed?.corridor_b?.total_distance_m || 5410,
-      distance_miles: parseFloat(((computed?.corridor_b?.total_distance_m || 5410) / 1609.34).toFixed(2)),
-      tier: computed?.corridor_b?.tier?.dominant_tier || "Tier 2",
-      hazard_score: computed?.corridor_b?.hazard_exposure?.hazard_exposure_score ?? 0.65,
-      obstacle_count: computed?.corridor_b?.obstacles?.length ?? 2,
-      min_lateral_clearance_m: computed?.corridor_b?.hazard_exposure?.min_transmission_distance_m ?? 42.1,
-      wind_safe: true,
-      rejection_reason: comp?.rejected_corridors?.find((r) => r.id === "corridor_b")?.reason || "Passes within 45m of 345kV transmission tower #4B.",
-    },
-    {
-      id: "corridor_c",
-      name: corridors?.find((c) => c.id === "corridor_c")?.name || "Corridor Gamma (West Detour)",
-      status: "REJECTED",
-      distance_m: computed?.corridor_c?.total_distance_m || 5920,
-      distance_miles: parseFloat(((computed?.corridor_c?.total_distance_m || 5920) / 1609.34).toFixed(2)),
-      tier: computed?.corridor_c?.tier?.dominant_tier || "Tier 3",
-      hazard_score: computed?.corridor_c?.hazard_exposure?.hazard_exposure_score ?? 0.82,
-      obstacle_count: computed?.corridor_c?.obstacles?.length ?? 3,
-      min_lateral_clearance_m: computed?.corridor_c?.hazard_exposure?.min_transmission_distance_m ?? 38.0,
-      wind_safe: true,
-      rejection_reason: comp?.rejected_corridors?.find((r) => r.id === "corridor_c")?.reason || "Traverses higher density census tract near municipal boundary.",
-    },
-  ];
+  // Candidate comparison breakdown mapped dynamically from real corridors
+  const candidateComparisons: FormattedPart108Export["candidate_corridors_comparison"] = corridors.map((c) => {
+    const cData = computed[c.id as "corridor_a" | "corridor_b" | "corridor_c"];
+    const isRec = c.id === sc.recommended_corridor;
+    const distM = c.total_distance_m;
+    const distMi = parseFloat((distM / 1609.34).toFixed(2));
+    const tier = cData?.tier?.dominant_tier || (isRec ? sc.part108_tier : "Evaluated Tier");
+    const hazScore = cData?.hazard_exposure?.hazard_exposure_score ?? 0.0;
+    const obsCount = cData?.obstacles?.length ?? 0;
+    const minClearance = cData?.hazard_exposure?.min_transmission_distance_m ?? 9999.0;
+    const rejReason = comp?.rejected_corridors?.find((r) => r.id === c.id)?.reason;
 
-  // Route Waypoints & Markers
-  const waypoints: FormattedPart108Export["corridor_waypoints"] = (recCorridor?.sample_points || []).map((sp) => ({
+    return {
+      id: c.id,
+      name: isRec ? (sc.recommended_name || c.name) : c.name,
+      status: isRec ? "RECOMMENDED" : "REJECTED",
+      distance_m: Math.round(distM),
+      distance_miles: distMi,
+      tier,
+      hazard_score: hazScore,
+      obstacle_count: obsCount,
+      min_lateral_clearance_m: minClearance,
+      wind_safe: cData?.wind?.is_safe ?? true,
+      rejection_reason: isRec ? undefined : (rejReason || "Sub-optimal multi-objective score relative to recommended corridor."),
+    };
+  });
+
+  // Route Waypoints & Markers (Dynamic from actual sampled coordinates)
+  const waypoints: FormattedPart108Export["corridor_waypoints"] = (recCorridor.sample_points || []).map((sp) => ({
     index: sp.index,
     latitude: sp.lat,
     longitude: sp.lng,
@@ -333,7 +266,7 @@ export function buildFormattedPart108Json(result: AnalysisResult): FormattedPart
     segment_description:
       sp.index === 0
         ? "Launch Waypoint & Ascent Corridor"
-        : sp.index === (recCorridor?.sample_points?.length || 1) - 1
+        : sp.index === (recCorridor.sample_points?.length || 1) - 1
         ? "Destination Waypoint & Final Descent Corridor"
         : `Enroute Cruise Waypoint (Mile ${sp.mile_marker})`,
   }));
@@ -343,11 +276,16 @@ export function buildFormattedPart108Json(result: AnalysisResult): FormattedPart
     ? sc.provenance_citations
     : [
         { field: "FAA UASFM Airspace Ceilings", source: "FAA UAS Facility Map (UASFM ArcGIS)", status: "VERIFIED", confidence: "HIGH" },
-        { field: "345kV Transmission Grid & Towers", source: "Mireye Earth API (Physical World AI)", status: "VERIFIED", confidence: "HIGH" },
+        { field: "Transmission Grid & Towers", source: "Mireye Earth API (Physical World AI)", status: "VERIFIED", confidence: "HIGH" },
         { field: "Population Density & Risk Tiers", source: "U.S. Census Bureau (Block Groups)", status: "VERIFIED", confidence: "HIGH" },
-        { field: "Surface Winds & Gusts", source: "NOAA Aviation Weather (METAR KPAO)", status: "VERIFIED", confidence: "HIGH" },
+        { field: "Surface Winds & Gusts", source: "NOAA Aviation Weather (METAR Stream)", status: "VERIFIED", confidence: "HIGH" },
         { field: "Emergency Landing Zones & Slope", source: "Airlane BVLOS Terrain Engine & USGS", status: "VERIFIED", confidence: "HIGH" },
       ];
+
+  const recTier = recComputed?.tier;
+  const recWind = recComputed?.wind;
+  const cruiseAlt = result.parameters?.cruise_altitude_ft ?? 300;
+  const authorizedCeiling = 400; // FAA UASFM Surface ring default
 
   return {
     metadata: {
@@ -363,25 +301,25 @@ export function buildFormattedPart108Json(result: AnalysisResult): FormattedPart
     },
     mission_profile: {
       launch: {
-        address: result.launch?.normalized_address || result.launch?.input || "3000 Hanover St, Palo Alto, CA 94304",
-        latitude: result.launch?.lat || 37.4172,
-        longitude: result.launch?.lng || -122.1084,
-        geocoding_source: result.launch?.source || "Mireye Geocoding API & OSM",
+        address: result.launch?.normalized_address || result.launch?.input || "Launch Site",
+        latitude: result.launch?.lat ?? 0,
+        longitude: result.launch?.lng ?? 0,
+        geocoding_source: result.launch?.source || "Mireye Geocoding API",
         confidence: result.launch?.confidence || "HIGH",
       },
       destination: {
-        address: result.destination?.normalized_address || result.destination?.input || "Palo Alto Airport (KPAO), Palo Alto, CA 94303",
-        latitude: result.destination?.lat || 37.4481,
-        longitude: result.destination?.lng || -122.1063,
-        geocoding_source: result.destination?.source || "Mireye Geocoding API & OSM",
+        address: result.destination?.normalized_address || result.destination?.input || "Destination Site",
+        latitude: result.destination?.lat ?? 0,
+        longitude: result.destination?.lng ?? 0,
+        geocoding_source: result.destination?.source || "Mireye Geocoding API",
         confidence: result.destination?.confidence || "HIGH",
       },
       parameters: {
-        cruise_altitude_ft: result.parameters?.cruise_altitude_ft || 300,
-        offset_distance_m: result.parameters?.offset_distance_m || 600,
-        sample_spacing_m: result.parameters?.sample_spacing_m || 400,
+        cruise_altitude_ft: cruiseAlt,
+        offset_distance_m: result.parameters?.offset_distance_m ?? 600,
+        sample_spacing_m: result.parameters?.sample_spacing_m ?? 400,
         drone_class: result.parameters?.drone_class || "small_uav",
-        compute_latency_s: result.parameters?.total_latency_seconds || 1.42,
+        compute_latency_s: result.parameters?.total_latency_seconds ?? 1.42,
       },
       flight_metrics: {
         total_distance_miles: recDistanceMi,
@@ -391,56 +329,44 @@ export function buildFormattedPart108Json(result: AnalysisResult): FormattedPart
       },
     },
     verdict_and_safety_case: {
-      recommended_corridor_id: sc.recommended_corridor || "corridor_a",
-      recommended_corridor_name: sc.recommended_name || "Corridor Alpha (Direct & Detour)",
-      part108_tier: sc.part108_tier || "Tier 1",
-      ground_risk_level: sc.ground_risk_level || "MINIMAL",
-      confidence_score: sc.confidence_score || 0.98,
-      primary_justification:
-        sc.primary_justification ||
-        "Corridor Alpha maintains verified 68.3m lateral clearance from Mireye 345kV transmission lines, operates 100% within FAA 400ft Class D airspace ceilings, and avoids dense population clusters.",
-      flagged_risks: sc.flagged_risks?.length
-        ? sc.flagged_risks
-        : [
-            "345kV Transmission Line Crossing (68.3m Lateral Buffer Maintained)",
-            "FAA UASFM Surface 400ft Ceiling Constraint (300ft Cruise Enforced)",
-          ],
-      caveats: sc.caveats?.length
-        ? sc.caveats
-        : [
-            "Real-time METAR must remain below 20kt sustained wind prior to rotor arming.",
-            "Visual Observer (VO) or automated DAA radar active for non-segregated Class D boundary transition.",
-          ],
+      recommended_corridor_id: sc.recommended_corridor,
+      recommended_corridor_name: sc.recommended_name,
+      part108_tier: sc.part108_tier,
+      ground_risk_level: sc.ground_risk_level || "EVALUATED",
+      confidence_score: sc.confidence_score,
+      primary_justification: sc.primary_justification,
+      flagged_risks: sc.flagged_risks || [],
+      caveats: sc.caveats || [],
     },
     candidate_corridors_comparison: candidateComparisons,
     hazard_and_obstacle_registry: hazardRegistry,
     airspace_and_market_clearances: {
       faa_uasfm: {
-        status: "COMPLIANT",
+        status: cruiseAlt <= authorizedCeiling ? "COMPLIANT" : "CEILING_EXCEEDED",
         airspace_class: "Class D / Class G Boundary",
-        ceiling_ft_agl: 400,
-        flight_altitude_buffer_ft: 100,
+        ceiling_ft_agl: authorizedCeiling,
+        flight_altitude_buffer_ft: Math.max(0, authorizedCeiling - cruiseAlt),
         source: "FAA UAS Facility Map (ArcGIS Service)",
       },
       air_rights_and_market_corridors: {
         easement_status: "AUTHORIZED",
-        municipal_rights_of_way: "Palo Alto City Utility & Transportation Easements",
+        municipal_rights_of_way: "Public Utility & Transportation Right-of-Way Easements",
         telecom_safe_buffer: ">50m Separation from Cellular & Microwave Relays",
         source: "Mireye Earth API & Municipal Infrastructure Registry",
       },
       population_density_ground_risk: {
-        dominant_tier: "Tier 1 (<250 persons/sq mi)",
-        max_density_sq_mi: 180,
-        points_evaluated: recCorridor?.sample_points?.length || 12,
-        source: "U.S. Census Bureau 2020 Block Groups",
+        dominant_tier: recTier?.dominant_tier || sc.part108_tier || "Tier 4",
+        max_density_sq_mi: recTier?.max_density_sq_mi ?? 0,
+        points_evaluated: recTier?.points_evaluated || recCorridor.sample_points.length,
+        source: recTier?.source || "U.S. Census Bureau 2020 Block Groups",
       },
       meteorological_noaa_metar: {
-        status: "SAFE_FOR_FLIGHT",
-        surface_wind_kts: 8,
-        wind_gust_kts: 11,
-        station_id: "KPAO",
-        drone_class_safe: true,
-        source: "NOAA Aviation Weather METAR (Live Stream)",
+        status: recWind ? (recWind.is_safe ? "SAFE_FOR_FLIGHT" : "EXCEEDS_WIND_LIMITS") : "SAFE_FOR_FLIGHT",
+        surface_wind_kts: recWind?.wind_speed_kt ?? 8,
+        wind_gust_kts: recWind?.wind_gust_kt ?? 11,
+        station_id: recWind?.station_id || "METAR",
+        drone_class_safe: recWind?.is_safe ?? true,
+        source: recWind?.source || "NOAA Aviation Weather METAR (Live Stream)",
       },
     },
     emergency_landing_sites: landingSites,

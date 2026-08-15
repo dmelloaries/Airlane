@@ -40,47 +40,34 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
     envRiskC?.intersects_critical_habitat
   );
 
-  const corridorsList = [
-    {
-      id: "corridor_a" as const,
-      name: sc.recommended_name || "Corridor Alpha (Direct & Detour)",
-      isRecommended: true,
-      distanceKm: (result.corridors?.find((c) => c.id === "corridor_a")?.total_distance_m || 4820) / 1000,
-      distanceMi: ((result.corridors?.find((c) => c.id === "corridor_a")?.total_distance_m || 4820) / 1609.34).toFixed(2),
-      tier: computed?.corridor_a?.tier?.dominant_tier || "Tier 1",
-      hazardScore: computed?.corridor_a?.hazard_exposure?.hazard_exposure_score ?? 0.0,
-      obstaclesCount: computed?.corridor_a?.obstacles?.length ?? 0,
-      minClearanceM: computed?.corridor_a?.hazard_exposure?.min_transmission_distance_m ?? 68.3,
-      environmentalRisk: envRiskA,
-      reason: comp?.reason || "Zero critical hazard conflicts and Tier 1 ground risk classification.",
-    },
-    {
-      id: "corridor_b" as const,
-      name: result.corridors?.find((c) => c.id === "corridor_b")?.name || "Corridor Beta (East Detour)",
-      isRecommended: false,
-      distanceKm: (result.corridors?.find((c) => c.id === "corridor_b")?.total_distance_m || 5410) / 1000,
-      distanceMi: ((result.corridors?.find((c) => c.id === "corridor_b")?.total_distance_m || 5410) / 1609.34).toFixed(2),
-      tier: computed?.corridor_b?.tier?.dominant_tier || "Tier 2",
-      hazardScore: computed?.corridor_b?.hazard_exposure?.hazard_exposure_score ?? 0.65,
-      obstaclesCount: computed?.corridor_b?.obstacles?.length ?? 2,
-      minClearanceM: computed?.corridor_b?.hazard_exposure?.min_transmission_distance_m ?? 42.1,
-      environmentalRisk: envRiskB,
-      reason: comp?.rejected_corridors?.find((r) => r.id === "corridor_b")?.reason || "Passes within 45m of 345kV transmission tower #4B.",
-    },
-    {
-      id: "corridor_c" as const,
-      name: result.corridors?.find((c) => c.id === "corridor_c")?.name || "Corridor Gamma (West Detour)",
-      isRecommended: false,
-      distanceKm: (result.corridors?.find((c) => c.id === "corridor_c")?.total_distance_m || 5920) / 1000,
-      distanceMi: ((result.corridors?.find((c) => c.id === "corridor_c")?.total_distance_m || 5920) / 1609.34).toFixed(2),
-      tier: computed?.corridor_c?.tier?.dominant_tier || "Tier 3",
-      hazardScore: computed?.corridor_c?.hazard_exposure?.hazard_exposure_score ?? 0.82,
-      obstaclesCount: computed?.corridor_c?.obstacles?.length ?? 3,
-      minClearanceM: computed?.corridor_c?.hazard_exposure?.min_transmission_distance_m ?? 38.0,
-      environmentalRisk: envRiskC,
-      reason: comp?.rejected_corridors?.find((r) => r.id === "corridor_c")?.reason || "Traverses higher density census tract near municipal boundary.",
-    },
-  ];
+  const corridorsList = (result.corridors || []).map((c) => {
+    const cId = c.id as "corridor_a" | "corridor_b" | "corridor_c";
+    const cData = computed?.[cId];
+    const isRecommended = c.id === sc.recommended_corridor;
+    const distM = c.total_distance_m;
+    const distKm = distM / 1000;
+    const distMi = (distM / 1609.34).toFixed(2);
+    const tier = cData?.tier?.dominant_tier || (isRecommended ? sc.part108_tier : "Evaluated Tier");
+    const hazardScore = cData?.hazard_exposure?.hazard_exposure_score ?? 0.0;
+    const obstaclesCount = cData?.obstacles?.length ?? 0;
+    const minClearanceM = cData?.hazard_exposure?.min_transmission_distance_m ?? 9999.0;
+    const envRisk = cData?.environmental_risk;
+    const rejReason = comp?.rejected_corridors?.find((r) => r.id === c.id)?.reason;
+
+    return {
+      id: cId,
+      name: isRecommended ? (sc.recommended_name || c.name) : c.name,
+      isRecommended,
+      distanceKm: distKm,
+      distanceMi: distMi,
+      tier,
+      hazardScore,
+      obstaclesCount,
+      minClearanceM,
+      environmentalRisk: envRisk,
+      reason: isRecommended ? (comp?.reason || sc.primary_justification) : (rejReason || "Sub-optimal safety ranking relative to recommended route."),
+    };
+  });
 
   const selectedEnvRisk = computed?.[selectedCorridor]?.environmental_risk || envRiskA;
   const recommendedData = corridorsList.find((c) => c.id === sc.recommended_corridor) || corridorsList[0];
