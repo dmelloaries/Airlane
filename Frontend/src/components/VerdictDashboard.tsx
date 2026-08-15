@@ -164,7 +164,9 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
               <span>↓</span>
             </button>
             <button
-              onClick={() => generatePart108Pdf(result)}
+              onClick={async () => {
+                await generatePart108Pdf(result);
+              }}
               className="px-3 py-2.5 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-md border border-slate-300 shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
               title="Quick Download Official PDF Dossier"
             >
@@ -172,7 +174,9 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
               <span>↓</span>
             </button>
             <button
-              onClick={() => downloadJsonFile(buildFormattedPart108Json(result))}
+              onClick={async () => {
+                await downloadJsonFile(buildFormattedPart108Json(result));
+              }}
               className="px-3 py-2.5 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-md border border-slate-300 shadow-xs transition-colors flex items-center gap-1.5 cursor-pointer"
               title="Quick Download Machine-Readable JSON"
             >

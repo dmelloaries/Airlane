@@ -457,35 +457,27 @@ export function buildFormattedPart108Json(result: AnalysisResult): FormattedPart
   };
 }
 
+import { saveFileToDisk } from "./fileSaver";
+
 /**
- * Downloads JSON with robust DOM attachment and automatic memory cleanup.
+ * Downloads JSON with robust native save and Data URI / File fallback for guaranteed filename retention on all browsers.
  */
-export function downloadJsonFile(data: any, customFilename?: string): boolean {
+export async function downloadJsonFile(data: any, customFilename?: string): Promise<boolean> {
   try {
     const jsonString = JSON.stringify(data, null, 2);
-    const blob = new Blob([jsonString], { type: "application/json;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
     const filename =
       customFilename ||
-      `Airlane_Part108_SafetyCase_${new Date().toISOString().slice(0, 10)}_${Date.now().toString().slice(-4)}.json`;
+      `Airlane_Part108_SafetyCase_${new Date().toISOString().slice(0, 10)}.json`;
 
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.style.display = "none";
-    document.body.appendChild(anchor);
-    anchor.click();
-
-    setTimeout(() => {
-      try {
-        document.body.removeChild(anchor);
-        URL.revokeObjectURL(url);
-      } catch (err) {
-        console.warn("Cleanup error:", err);
+    return await saveFileToDisk(
+      jsonString,
+      filename,
+      "application/json",
+      {
+        description: "Part 108 JSON Safety Filing",
+        accept: { "application/json": [".json"] },
       }
-    }, 250);
-
-    return true;
+    );
   } catch (error) {
     console.error("Failed to download JSON:", error);
     return false;

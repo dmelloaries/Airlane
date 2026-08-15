@@ -1,5 +1,6 @@
 import type { AnalysisResult } from "../types/airlane";
 import { buildFormattedPart108Json } from "./exportUtils";
+import { saveFileToDisk } from "./fileSaver";
 
 interface PdfDrawOptions {
   font?: "F1" | "F2" | "F3"; // F1: Helvetica, F2: Helvetica-Bold, F3: Courier
@@ -235,10 +236,19 @@ class SimplePdfBuilder {
   }
 }
 
+function uint8ArrayToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return window.btoa(binary);
+}
+
 /**
  * Builds and downloads a multi-page vector PDF safety dossier.
  */
-export function generatePart108Pdf(result: AnalysisResult, customFilename?: string): boolean {
+export async function generatePart108Pdf(result: AnalysisResult, customFilename?: string): Promise<boolean> {
   try {
     const data = buildFormattedPart108Json(result);
     const pdf = new SimplePdfBuilder();
@@ -595,31 +605,21 @@ export function generatePart108Pdf(result: AnalysisResult, customFilename?: stri
       { font: "F3", size: 6.5, color: [0.01, 0.45, 0.75] }
     );
 
-    // Compile binary and download
+    // Compile binary and save with guaranteed extension
     const pdfBytes = pdf.compile();
-    const blob = new Blob([pdfBytes as unknown as BlobPart], { type: "application/pdf" });
-    const url = URL.createObjectURL(blob);
     const filename =
       customFilename ||
-      `Airlane_Part108_SafetyCase_${new Date().toISOString().slice(0, 10)}_${Date.now().toString().slice(-4)}.pdf`;
+      `Airlane_Part108_SafetyCase_${new Date().toISOString().slice(0, 10)}.pdf`;
 
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = filename;
-    anchor.style.display = "none";
-    document.body.appendChild(anchor);
-    anchor.click();
-
-    setTimeout(() => {
-      try {
-        document.body.removeChild(anchor);
-        URL.revokeObjectURL(url);
-      } catch (err) {
-        console.warn("Cleanup error:", err);
+    return await saveFileToDisk(
+      pdfBytes,
+      filename,
+      "application/pdf",
+      {
+        description: "FAA Part 108 PDF Safety Dossier",
+        accept: { "application/pdf": [".pdf"] },
       }
-    }, 250);
-
-    return true;
+    );
   } catch (err) {
     console.error("Failed to generate Part 108 PDF:", err);
     return false;

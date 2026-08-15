@@ -22,18 +22,18 @@ export const ExportModal: React.FC<ExportModalProps> = ({ result, onClose }) => 
   const formattedData = buildFormattedPart108Json(result);
   const formattedJsonString = JSON.stringify(formattedData, null, 2);
 
-  const handleDownloadJson = () => {
-    const success = downloadJsonFile(formattedData);
+  const handleDownloadJson = async () => {
+    const success = await downloadJsonFile(formattedData);
     if (success) {
-      setDownloadSuccessMessage("Part 108 JSON downloaded successfully!");
+      setDownloadSuccessMessage("Part 108 JSON saved successfully!");
       setTimeout(() => setDownloadSuccessMessage(null), 4000);
     }
   };
 
-  const handleDownloadPdf = () => {
-    const success = generatePart108Pdf(result);
+  const handleDownloadPdf = async () => {
+    const success = await generatePart108Pdf(result);
     if (success) {
-      setDownloadSuccessMessage("Official FAA Part 108 PDF generated & downloaded!");
+      setDownloadSuccessMessage("Official FAA Part 108 PDF generated & saved successfully!");
       setTimeout(() => setDownloadSuccessMessage(null), 4000);
     }
   };
