@@ -17,33 +17,21 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="flex items-center gap-3">
         <div
           onClick={onReset}
-          className="flex items-center gap-2.5 cursor-pointer group select-none"
+          className="flex items-center gap-3 sm:gap-3.5 cursor-pointer group select-none"
         >
-          {/* Silicon Valley Drone Navigation Icon */}
-          <div className="w-8 h-8 rounded-lg bg-sky-600 flex items-center justify-center text-white shadow-xs group-hover:bg-sky-700 transition-colors">
-            <svg
-              className="w-4 h-4"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-              <circle cx="12" cy="12" r="2.5" fill="white" />
-            </svg>
+          {/* AirLane Drone Navigation Brand Logo */}
+          <div className="w-11 h-11 rounded-xl overflow-hidden shadow-sm flex items-center justify-center group-hover:scale-105 transition-transform shrink-0">
+            <img
+              src="/logo.png"
+              alt="AirLane Logo"
+              className="w-full h-full object-cover"
+            />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="text-base font-bold text-slate-900 tracking-tight font-display">
-                Airlane
-              </span>
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                BVLOS v1.0
-              </span>
-            </div>
-            <p className="text-[10px] text-slate-500 hidden sm:block font-mono">
+          <div className="flex flex-col justify-center">
+            <span className="text-2xl font-bold text-slate-900 tracking-tight font-instrument leading-none">
+              AirLane
+            </span>
+            <p className="text-[11px] text-slate-500 hidden sm:block font-mono tracking-tight mt-1">
               Autonomous Flight Corridors · FAA Part 108 Digital Twin
             </p>
           </div>
