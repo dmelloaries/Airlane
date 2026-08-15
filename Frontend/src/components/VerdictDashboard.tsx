@@ -71,40 +71,40 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300 pb-10 font-sans">
-      {/* SUCCESS CELEBRATION TOAST CARD */}
+      {/* SUCCESS CELEBRATION TOAST CARD (Aviation Engineering Theme) */}
       {showSuccessToast && (
-        <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-900/90 via-slate-900 to-sky-950 text-white border border-emerald-500/40 shadow-xl flex flex-wrap items-center justify-between gap-4 animate-in slide-in-from-top duration-300">
-          <div className="flex items-center gap-3.5">
-            <div className="w-9 h-9 rounded-xl bg-emerald-500/20 border border-emerald-400/50 flex items-center justify-center text-emerald-300 text-lg font-bold shadow-inner">
+        <div className="p-3.5 rounded-xl bg-white border border-emerald-200/90 shadow-xs flex flex-wrap items-center justify-between gap-3 animate-in fade-in duration-300">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 text-sm font-bold shadow-xs">
               ✓
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="font-bold text-sm text-white tracking-wide font-display">
+                <span className="font-bold text-xs text-slate-900 font-display tracking-tight">
                   Autonomous Route Safety Case Ready
                 </span>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                <span className="px-2 py-0.2 rounded text-[10px] font-mono font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                   VERIFIED 100%
                 </span>
               </div>
-              <p className="text-xs text-slate-300 mt-0.5 font-sans">
+              <p className="text-xs text-slate-500 font-sans mt-0.5">
                 {sc.recommended_name || "Corridor Alpha"} has passed all 8 FAA Part 108 ground risk and hazard compliance checks.
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="hidden md:flex items-center gap-2 text-xs font-mono">
-              <span className="px-2 py-1 rounded bg-black/40 border border-white/10 text-emerald-400 font-semibold">
+          <div className="flex items-center gap-2.5">
+            <div className="hidden sm:flex items-center gap-2 text-[10px] font-mono font-bold">
+              <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
                 Tier 1 Low Risk
               </span>
-              <span className="px-2 py-1 rounded bg-black/40 border border-white/10 text-sky-400 font-semibold">
+              <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-200">
                 {confidencePct}% Confidence
               </span>
             </div>
             <button
               onClick={() => setShowSuccessToast(false)}
-              className="px-2.5 py-1 text-slate-400 hover:text-white text-xs font-mono rounded bg-white/5 hover:bg-white/10 border border-white/10 transition-colors cursor-pointer"
+              className="px-2.5 py-1 text-slate-400 hover:text-slate-700 text-xs font-mono rounded-md hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer"
             >
               ✕ DISMISS
             </button>
