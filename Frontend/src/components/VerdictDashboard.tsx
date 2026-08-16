@@ -14,6 +14,19 @@ interface VerdictDashboardProps {
   traceEvents?: TraceEvent[];
 }
 
+const getGroundRiskLevel = (tierStr: string, existingLevel?: string): string => {
+  if (existingLevel && existingLevel !== "MINIMAL" && existingLevel !== "EVALUATED") {
+    return existingLevel.toUpperCase();
+  }
+  const t = (tierStr || "").toLowerCase();
+  if (t.includes("tier 5") || t.includes("5")) return "MAXIMUM";
+  if (t.includes("tier 4") || t.includes("4")) return "HIGH";
+  if (t.includes("tier 3") || t.includes("3")) return "ELEVATED";
+  if (t.includes("tier 2") || t.includes("2")) return "MODERATE";
+  if (t.includes("tier 1") || t.includes("1")) return "LOW";
+  return existingLevel || "MINIMAL";
+};
+
 export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
   result,
   onReset,
@@ -82,6 +95,12 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
 
   const selectedEnvRisk = computed?.[selectedCorridor]?.environmental_risk || envRiskA;
   const recommendedData = corridorsList.find((c) => c.id === sc.recommended_corridor) || corridorsList[0];
+  const recComputed = computed?.[sc.recommended_corridor as "corridor_a" | "corridor_b" | "corridor_c"] || computed?.corridor_a;
+  const currentCorridorComputed = computed?.[selectedCorridor] || recComputed;
+  const primaryObstacle = currentCorridorComputed?.obstacles?.[0] || recComputed?.obstacles?.[0];
+
+  const currentTier = sc.part108_tier || recommendedData.tier || "Evaluated Tier";
+  const currentRiskLevel = getGroundRiskLevel(currentTier, sc.ground_risk_level);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300 pb-10 font-sans">
@@ -142,7 +161,7 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
           <div className="flex items-center gap-2.5">
             <div className="hidden sm:flex items-center gap-2 text-[10px] font-mono font-bold">
               <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
-                Tier 1 Low Risk
+                {currentTier} {currentRiskLevel} Risk
               </span>
               <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-200">
                 {confidencePct}% Confidence
@@ -170,13 +189,13 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
 
           <div className="flex flex-wrap items-center gap-2">
             <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold">
-              FAA {sc.part108_tier || "TIER 1"}
+              FAA {currentTier.toUpperCase()}
             </span>
             <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-300 font-bold">
               CONFIDENCE {confidencePct}%
             </span>
             <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-bold">
-              GROUND RISK: {sc.ground_risk_level || "MINIMAL"}
+              GROUND RISK: {currentRiskLevel}
             </span>
           </div>
         </div>
@@ -193,7 +212,7 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
             </h1>
             <p className="text-lg sm:text-xl md:text-2xl text-slate-600 max-w-3xl font-normal leading-relaxed font-instrument">
               {sc.primary_justification ||
-                "Corridor Alpha maintains verified 68.3m lateral clearance from Mireye 345kV transmission lines, operates 100% within FAA 400ft Class D airspace ceilings, and avoids dense population clusters."}
+                `${recommendedData.name} maintains verified ${recommendedData.minClearanceM !== null ? `${recommendedData.minClearanceM.toFixed(1)}m` : 'safe'} lateral clearance from transmission infrastructure, operates 100% within FAA 400ft Class D airspace ceilings, and avoids dense population clusters.`}
             </p>
           </div>
 
@@ -408,7 +427,7 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
                     <td className="py-2.5 px-3">
                       <span
                         className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                          c.tier === "Tier 1"
+                          c.tier?.toLowerCase().includes("tier 1")
                             ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
                             : "bg-slate-100 text-slate-700"
                         }`}
@@ -477,13 +496,24 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
               >
                 <div>
                   <div className="text-xs font-bold text-slate-900 font-display flex items-center gap-1.5">
-                    <span>345kV TRANSMISSION LINE CROSSING</span>
+                    <span>
+                      {primaryObstacle?.obstacle_type
+                        ? primaryObstacle.obstacle_type.toUpperCase()
+                        : primaryObstacle?.voltage_kv
+                        ? `${primaryObstacle.voltage_kv}KV TRANSMISSION LINE CROSSING`
+                        : "TRANSMISSION LINE CROSSING"}
+                    </span>
                     <span className="text-[10px] font-mono font-bold text-emerald-700 bg-emerald-50 px-1 py-0.2 rounded">
-                      MITIGATED
+                      {primaryObstacle?.clearance_status || "MITIGATED"}
                     </span>
                   </div>
                   <div className="text-xs text-slate-500 font-mono">
-                    Mireye Earth API · 68.3m Lateral Clearance
+                    {primaryObstacle?.source || "Mireye Earth API"} ·{" "}
+                    {primaryObstacle?.distance_m !== undefined
+                      ? `${primaryObstacle.distance_m.toFixed(1)}m Lateral Clearance`
+                      : recommendedData.minClearanceM !== null
+                      ? `${recommendedData.minClearanceM.toFixed(1)}m Lateral Clearance`
+                      : "Verified Clearance"}
                   </div>
                 </div>
                 <span className="text-xs font-mono text-sky-600 group-hover:text-sky-800">
@@ -496,23 +526,41 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
                   <div className="grid grid-cols-2 gap-2 font-mono text-[11px]">
                     <div>
                       <span className="text-slate-400 block text-[10px]">SOURCE:</span>
-                      <span className="font-bold text-slate-800">Mireye Earth API</span>
+                      <span className="font-bold text-slate-800">
+                        {primaryObstacle?.source || "Mireye Earth API"}
+                      </span>
                     </div>
                     <div>
                       <span className="text-slate-400 block text-[10px]">RAW CLEARANCE:</span>
-                      <span className="font-bold text-slate-800">68.3 m (Lateral Buffer)</span>
+                      <span className="font-bold text-slate-800">
+                        {primaryObstacle?.distance_m !== undefined
+                          ? `${primaryObstacle.distance_m.toFixed(1)} m`
+                          : recommendedData.minClearanceM !== null
+                          ? `${recommendedData.minClearanceM.toFixed(1)} m`
+                          : "N/A"}{" "}
+                        (Lateral Buffer)
+                      </span>
                     </div>
                     <div>
                       <span className="text-slate-400 block text-[10px]">VOLTAGE:</span>
-                      <span className="font-bold text-slate-800">345 kV High Voltage</span>
+                      <span className="font-bold text-slate-800">
+                        {primaryObstacle?.voltage_kv
+                          ? `${primaryObstacle.voltage_kv} kV High Voltage`
+                          : "High Voltage Grid"}
+                      </span>
                     </div>
                     <div>
                       <span className="text-slate-400 block text-[10px]">COORDINATES:</span>
-                      <span className="font-bold text-slate-800">37.4285° N, 122.1072° W</span>
+                      <span className="font-bold text-slate-800">
+                        {primaryObstacle?.lat !== undefined && primaryObstacle?.lng !== undefined
+                          ? `${primaryObstacle.lat.toFixed(4)}° N, ${Math.abs(primaryObstacle.lng).toFixed(4)}° W`
+                          : "N/A"}
+                      </span>
                     </div>
                   </div>
                   <p className="text-[11px] text-slate-600 leading-relaxed border-t border-slate-200/80 pt-2">
-                    Corridor Alpha incorporates a 600m lateral detour around the transmission tower, preventing electromagnetic interference with onboard IMU and GNSS compass sensors.
+                    {primaryObstacle?.description ||
+                      `${recommendedData.name} incorporates lateral detour clearance around transmission infrastructure, preventing electromagnetic interference with onboard IMU and GNSS compass sensors.`}
                   </p>
                 </div>
               )}
@@ -641,10 +689,10 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
                     <span className="text-rose-600 font-bold text-[10px]">[REJECTED]</span>
                   </div>
                   <p className="text-xs text-slate-600 font-sans leading-relaxed">
-                    Passes within 45m of 345kV transmission tower #4B, creating electromagnetic hazard exposure.
+                    Passes within lateral proximity threshold of high voltage transmission tower #4B, creating electromagnetic hazard exposure.
                   </p>
                   <div className="text-[10px] font-mono text-slate-400">
-                    FACTORS: Mireye Earth API · 345kV Grid
+                    FACTORS: Mireye Earth API · Infrastructure Grid
                   </div>
                 </div>
 
@@ -680,38 +728,49 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
               </p>
             </div>
             <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-bold">
-              2 DESIGNATED
+              {(recComputed?.landing_zones || []).length} DESIGNATED
             </span>
           </div>
 
           <div className="space-y-2 pt-1 font-mono text-xs">
-            <div className="p-2.5 rounded border border-emerald-200 bg-emerald-50/50 flex items-center justify-between">
-              <div>
-                <div className="font-bold text-emerald-950 font-sans">
-                  LZ-01: Byxbee Meadow Recovery Pad
-                </div>
-                <div className="text-[11px] text-slate-500">
-                  Mile 2.4 along corridor · 18.7m clearance · 3.2° slope
-                </div>
-              </div>
-              <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                PRIMARY
-              </span>
-            </div>
+            {(recComputed?.landing_zones && recComputed.landing_zones.length > 0) ? (
+              recComputed.landing_zones.map((lz, idx) => {
+                const isPrimary = idx === 0;
+                const name = lz.description || `LZ-0${idx + 1}: Emergency Forced-Landing Zone`;
+                const mileStr = lz.distance_along_route_miles !== undefined ? lz.distance_along_route_miles.toFixed(2) : "0.00";
+                const clearanceStr = lz.infrastructure_clearance_m !== undefined ? `${lz.infrastructure_clearance_m.toFixed(1)}m` : "N/A";
+                const slopeStr = lz.slope_degrees !== undefined ? `${lz.slope_degrees.toFixed(1)}°` : "0.0°";
 
-            <div className="p-2.5 rounded border border-slate-200 bg-slate-50 flex items-center justify-between">
-              <div>
-                <div className="font-bold text-slate-900 font-sans">
-                  LZ-02: Research Quad Backup Pad
-                </div>
-                <div className="text-[11px] text-slate-500">
-                  Mile 1.1 along corridor · 24.0m clearance · 1.0° slope
-                </div>
+                return (
+                  <div
+                    key={idx}
+                    className={`p-2.5 rounded border flex items-center justify-between ${
+                      isPrimary ? "border-emerald-200 bg-emerald-50/50" : "border-slate-200 bg-slate-50"
+                    }`}
+                  >
+                    <div>
+                      <div className={`font-bold font-sans ${isPrimary ? "text-emerald-950" : "text-slate-900"}`}>
+                        {name}
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        Mile {mileStr} along corridor · {clearanceStr} clearance · {slopeStr} slope
+                      </div>
+                    </div>
+                    <span
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                        isPrimary ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-700"
+                      }`}
+                    >
+                      {isPrimary ? "PRIMARY" : "BACKUP"}
+                    </span>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="p-3 text-slate-500 font-sans text-xs italic">
+                No designated emergency landing zones identified along route.
               </div>
-              <span className="px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-[10px] font-bold">
-                BACKUP
-              </span>
-            </div>
+            )}
           </div>
         </div>
 
@@ -743,12 +802,16 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
             <div className="p-2 rounded bg-slate-50 border border-slate-200">
               <div className="font-bold text-slate-900">U.S. CENSUS</div>
               <div className="text-[10px] text-slate-500">Block Group Density</div>
-              <div className="text-[9px] text-emerald-700 font-bold mt-1">TIER 1 CLASSIFIED</div>
+              <div className="text-[9px] text-emerald-700 font-bold mt-1">{currentTier.toUpperCase()} CLASSIFIED</div>
             </div>
             <div className="p-2 rounded bg-slate-50 border border-slate-200">
               <div className="font-bold text-slate-900">MIREYE EARTH API</div>
-              <div className="text-[10px] text-slate-500">345kV Grid Clearance</div>
-              <div className="text-[9px] text-emerald-700 font-bold mt-1">68.3M LATERAL DETOUR</div>
+              <div className="text-[10px] text-slate-500">
+                {primaryObstacle?.voltage_kv ? `${primaryObstacle.voltage_kv}kV Grid Clearance` : "Transmission Grid Clearance"}
+              </div>
+              <div className="text-[9px] text-emerald-700 font-bold mt-1">
+                {recommendedData.minClearanceM !== null ? `${recommendedData.minClearanceM.toFixed(1)}M LATERAL DETOUR` : "VERIFIED CLEARANCE"}
+              </div>
             </div>
           </div>
         </div>
@@ -771,3 +834,4 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
     </div>
   );
 };
+

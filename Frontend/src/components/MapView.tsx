@@ -200,20 +200,28 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
 
     // 3. Draw Rejected Candidate Corridors (DOTTED RED LINES)
     if (showRejectedRoutes) {
-      const rejectedList = [
-        {
-          id: "corridor_b",
-          name: "Corridor Beta (East Detour)",
-          reason: "Passes within 42.1m of 345kV transmission tower #4B (Critical Proximity Conflict).",
-          distanceKm: "5.41 km",
-        },
-        {
-          id: "corridor_c",
-          name: "Corridor Gamma (West Detour)",
-          reason: "Traverses higher density suburban zone (Tier 3 Ground Risk, >2,100 people/sq mi).",
-          distanceKm: "5.92 km",
-        },
-      ];
+      const comp = computed as any;
+      const rejectedList = (comp?.rejected_corridors && comp.rejected_corridors.length > 0)
+        ? comp.rejected_corridors.map((r: any) => ({
+            id: r.id,
+            name: r.name,
+            reason: r.reason,
+            distanceKm: "5.41 km",
+          }))
+        : [
+            {
+              id: "corridor_b",
+              name: "Corridor Beta (East Detour)",
+              reason: "Passes within lateral proximity threshold of overhead transmission tower, creating electromagnetic hazard exposure.",
+              distanceKm: "5.41 km",
+            },
+            {
+              id: "corridor_c",
+              name: "Corridor Gamma (West Detour)",
+              reason: "Traverses higher density suburban zone (Elevated Ground Risk).",
+              distanceKm: "5.92 km",
+            },
+          ];
 
       rejectedList.forEach((rej) => {
         const corrData = corridors?.find((c) => c.id === rej.id);
@@ -248,20 +256,9 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
         if (polylineCoords.length >= 3) {
           const midPt = polylineCoords[Math.floor(polylineCoords.length / 2)];
           const rejBadge = L.divIcon({
-            className: "custom-rej-badge",
+            className: "rejected-route-badge",
             html: `
-              <div style="
-                background: #fef2f2;
-                color: #dc2626;
-                border: 1.5px solid #f87171;
-                border-radius: 4px;
-                padding: 1px 4px;
-                font-size: 9px;
-                font-family: monospace;
-                font-weight: bold;
-                box-shadow: 0 1px 4px rgba(220, 38, 38, 0.25);
-                white-space: nowrap;
-              ">
+              <div style="background-color: #fef2f2; color: #dc2626; border: 1.5px solid #f87171; border-radius: 4px; padding: 1px 4px; font-size: 9px; font-family: monospace; font-weight: bold; box-shadow: 0 1px 4px rgba(220, 38, 38, 0.25); white-space: nowrap;">
                 ✕ ${rej.id === "corridor_b" ? "BETA (REJECTED)" : "GAMMA (REJECTED)"}
               </div>
             `,
@@ -326,9 +323,9 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
           lng: -122.1072,
           distance_along_route_m: 1420,
           distance_along_route_miles: 0.88,
-          obstacle_type: "345kV Transmission Line",
-          distance_m: 68.3,
-          voltage_kv: 345,
+          obstacle_type: "Overhead Transmission Line",
+          distance_m: 120.5,
+          voltage_kv: 115,
           severity: "HIGH",
           clearance_status: "Detour Enforced (>60m Clearance)",
           source: "Mireye Earth API",
@@ -646,7 +643,7 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
                 : "text-slate-400 hover:text-slate-600"
             }`}
           >
-            ⚡ HAZARDS & 345kV
+            ⚡ HAZARDS & INFRASTRUCTURE
           </button>
           <button
             onClick={() => setShowAirspace(!showAirspace)}

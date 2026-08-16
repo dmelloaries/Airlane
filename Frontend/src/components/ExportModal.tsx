@@ -216,9 +216,9 @@ export const ExportModal: React.FC<ExportModalProps> = ({ result, onClose }) => 
                     </p>
                     <ul className="text-[11px] text-slate-500 font-mono space-y-1 pt-1">
                       <li>✓ Vector PDF with high-resolution layout</li>
-                      <li>✓ Mireye 345kV & infrastructure hazards</li>
+                      <li>✓ Mireye transmission & infrastructure hazards</li>
                       <li>✓ FAA UASFM, METAR & Census tables</li>
-                      <li>✓ Emergency landing zones (LZ-01 & LZ-02)</li>
+                      <li>✓ Designated emergency forced-landing zones</li>
                     </ul>
                   </div>
 

@@ -68,12 +68,12 @@ export const CorridorTable: React.FC<CorridorTableProps> = ({ result }) => {
                   <td className="py-2.5 px-3">
                     <span
                       className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                        c.data?.tier?.dominant_tier === "Tier 1"
+                        c.data?.tier?.dominant_tier?.toLowerCase().includes("1") || c.data?.tier?.dominant_tier?.toLowerCase().includes("2")
                           ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
                           : "bg-slate-100 text-slate-700"
                       }`}
                     >
-                      {c.data?.tier?.dominant_tier || "Tier 1"}
+                      {c.data?.tier?.dominant_tier || "Evaluated Tier"}
                     </span>
                   </td>
                   <td className="py-2.5 px-3 font-bold text-slate-800">

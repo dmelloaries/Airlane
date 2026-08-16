@@ -172,7 +172,7 @@ export const CURATED_PRESET_PLACES: PlaceSuggestion[] = [
   },
   {
     label: "480 Berdoll Ln, Cedar Creek TX",
-    secondary: "Cedar Creek, TX 78612 (LCRA 345kV Grid)",
+    secondary: "Cedar Creek, TX 78612 (LCRA Power Grid)",
     lat: 30.1395,
     lng: -97.5462,
     category: "infrastructure",

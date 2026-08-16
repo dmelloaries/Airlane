@@ -14,7 +14,7 @@ const STAGE_MAP: Record<string, { label: string; stageIndex: number; source: str
   geocoding: { label: "Resolving Launch & Destination Coordinates", stageIndex: 1, source: "Mireye Geocoding API" },
   corridor_generation: { label: "Generating 3 Candidate Corridors (Direct & Detours)", stageIndex: 2, source: "Geometry Engine" },
   data_ingestion: { label: "Multi-Source Sensor Ingestion Active", stageIndex: 3, source: "Sensor Bus" },
-  mireye_hazards: { label: "Evaluating Mireye 345kV Infrastructure Proximity", stageIndex: 3, source: "Mireye Earth API" },
+  mireye_hazards: { label: "Evaluating Mireye Infrastructure Proximity", stageIndex: 3, source: "Mireye Earth API" },
   faa_airspace: { label: "Verifying FAA UASFM Airspace Ceilings (400ft AGL)", stageIndex: 4, source: "FAA UASFM" },
   population_density: { label: "Calculating Census Ground Risk & Demographics", stageIndex: 5, source: "U.S. Census Bureau" },
   noaa_wind: { label: "Auditing NOAA METAR Surface Wind & Gust Vectors", stageIndex: 6, source: "NOAA METAR" },
@@ -27,7 +27,7 @@ const STAGE_MAP: Record<string, { label: string; stageIndex: number; source: str
 const PIPELINE_STEPS = [
   { key: "geocoding", num: "01", name: "RESOLVING ENDPOINTS", source: "GEOCODING" },
   { key: "corridor_generation", num: "02", name: "GENERATING CORRIDORS", source: "GEOMETRY" },
-  { key: "mireye_hazards", num: "03", name: "MIREYE INFRASTRUCTURE (345kV)", source: "MIREYE API" },
+  { key: "mireye_hazards", num: "03", name: "MIREYE INFRASTRUCTURE", source: "MIREYE API" },
   { key: "faa_airspace", num: "04", name: "FAA AIRSPACE CEILINGS (400ft)", source: "FAA UASFM" },
   { key: "population_density", num: "05", name: "CENSUS POPULATION TIERS", source: "US CENSUS" },
   { key: "noaa_wind", num: "06", name: "NOAA WIND & METAR VECTORS", source: "NOAA METAR" },
@@ -139,7 +139,9 @@ export const LiveAnalysisOverlay: React.FC<LiveAnalysisOverlayProps> = ({
               <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold shadow-xs">✓</span>
               <div>
                 <span className="font-bold text-slate-900">Safety Verdict Compiled:</span>
-                <span className="text-emerald-800 ml-1">Corridor Alpha cleared with Tier 1 ground risk (92% Confidence). Loading Safety Case...</span>
+                <span className="text-emerald-800 ml-1">
+                  Corridor Alpha cleared with verified ground risk assessment (92% Confidence). Loading Safety Case...
+                </span>
               </div>
             </div>
             <span className="text-[10px] bg-emerald-600 text-white px-2.5 py-0.5 rounded-full font-bold uppercase animate-pulse">

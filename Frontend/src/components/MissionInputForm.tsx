@@ -8,7 +8,7 @@ interface MissionInputFormProps {
 
 const PRESETS = [
   {
-    name: "Cedar Creek, TX (345kV Transmission Risk)",
+    name: "Cedar Creek, TX (Transmission Risk)",
     tag: "Benchmark",
     launch: "480 Berdoll Ln, Cedar Creek TX",
     destination: "912 Elm St, Cedar Creek TX",

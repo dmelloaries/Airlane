@@ -25,7 +25,7 @@ const PRESETS = [
     payload: 1.5,
   },
   {
-    name: "Cedar Creek 345kV Grid",
+    name: "Cedar Creek Power Grid",
     tag: "Powerline Clearance",
     launch: "480 Berdoll Ln, Cedar Creek TX",
     destination: "912 Elm St, Cedar Creek TX",
@@ -306,7 +306,7 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
           <div className="pt-2 border-t border-slate-100 grid grid-cols-4 gap-1 text-center font-mono text-[10px] text-slate-500">
             <div className="p-1 rounded bg-slate-50">FAA UASFM</div>
             <div className="p-1 rounded bg-slate-50">NOAA METAR</div>
-            <div className="p-1 rounded bg-slate-50">MIREYE 345kV</div>
+            <div className="p-1 rounded bg-slate-50">MIREYE EARTH API</div>
             <div className="p-1 rounded bg-slate-50">US CENSUS</div>
           </div>
         </div>

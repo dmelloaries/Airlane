@@ -468,7 +468,7 @@ export async function generatePart108Pdf(result: AnalysisResult, customFilename?
       color: [0.06, 0.12, 0.22],
     });
     pdf.drawText(
-      "Includes 345kV power lines, substations, transmission towers, and municipal obstacles with exact coordinates & sources",
+      "Includes power lines, substations, transmission towers, and municipal obstacles with exact coordinates & sources",
       40,
       y + 12,
       { font: "F1", size: 7.5, color: [0.4, 0.45, 0.5] }

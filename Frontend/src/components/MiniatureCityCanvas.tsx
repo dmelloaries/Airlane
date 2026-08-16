@@ -218,7 +218,7 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
       corridorC: corrCWorld,
       obstacles: projectedObstacles,
       landingZones: projectedLandingZones,
-      dominantTier: analysisResult?.safety_case?.part108_tier || "Tier 1",
+      dominantTier: analysisResult?.safety_case?.part108_tier || "Part 108 Tier",
       confidencePct: Math.round((analysisResult?.safety_case?.confidence_score || 0.92) * 100),
       cruiseAltFt: analysisResult?.parameters?.cruise_altitude_ft || 300,
     };
@@ -228,7 +228,7 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
   const cityFeatures = useMemo(() => {
     const buildings = [
       // Silicon Valley Central Campuses
-      { x: -140, y: -90, w: 55, h: 42, height: 32, type: "campus", color: "#e2e8f0", roof: "#cbd5e1", label: "RESEARCH QUAD" },
+      { x: -140, y: -90, w: 55, h: 42, height: 32, type: "campus", color: "#e2e8f0", roof: "#cbd5e1", label: "RESEARCH & DEV CAMPUS" },
       { x: -70, y: -130, w: 45, h: 45, height: 48, type: "tower", color: "#93c5fd", roof: "#3b82f6", label: "INNOVATION TOWER" },
       { x: 20, y: -110, w: 60, h: 36, height: 26, type: "campus", color: "#f1f5f9", roof: "#94a3b8", label: "LABS" },
       { x: 110, y: -80, w: 40, h: 40, height: 40, type: "tower", color: "#bae6fd", roof: "#0284c7", label: "AVIONICS HUB" },
@@ -256,9 +256,9 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
     ];
 
     const powerTowers = [
-      { x: -80, y: 20, height: 50, label: "345kV TOWER #1" },
-      { x: -20, y: 0, height: 50, label: "345kV TOWER #2" },
-      { x: 40, y: -20, height: 50, label: "345kV TOWER #3" },
+      { x: -80, y: 20, height: 50, label: "GRID TOWER #1" },
+      { x: -20, y: 0, height: 50, label: "GRID TOWER #2" },
+      { x: 40, y: -20, height: 50, label: "GRID TOWER #3" },
     ];
 
     return { buildings, trees, powerTowers };
@@ -1021,7 +1021,7 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
       }
 
       // DRONE 3: Dynamic Obstacle Avoidance Demonstration
-      // Smoothly approaches 345kV Tower hazard, detects risk, arcs around safely
+      // Smoothly approaches grid tower hazard, detects risk, arcs around safely
       const d3T = (t * 0.15) % 1.0;
       const startX = -130;
       const startY = 60;
@@ -1195,7 +1195,7 @@ export const MiniatureCityCanvas: React.FC<MiniatureCityCanvasProps> = ({
               showHazards ? "bg-amber-50 text-amber-800 border border-amber-200 font-semibold" : "text-slate-400 hover:text-slate-600"
             }`}
           >
-            345kV GRID
+            POWER GRID
           </button>
           <button
             onClick={() => setShowLandingPads(!showLandingPads)}

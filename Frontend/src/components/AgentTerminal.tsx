@@ -40,7 +40,7 @@ const STAGE_CONFIG: Record<
     icon: "⚡",
   },
   mireye_hazards: {
-    tag: "MIREYE 345kV",
+    tag: "MIREYE GRID",
     color: "text-amber-400",
     bg: "bg-[#1c1810]",
     border: "border-[#3d321d]",
