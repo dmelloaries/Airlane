@@ -238,7 +238,6 @@ Airlane/
 │   ├── vite.config.ts             # Vite configuration
 │   └── .env                       # Frontend environment configuration
 │
-├── plan.md                        # Original 48-hour build roadmap & validation gates
 └── README.md                      # Project documentation
 ```
 
