@@ -200,8 +200,7 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
 
     // 3. Draw Rejected Candidate Corridors (DOTTED RED LINES)
     if (showRejectedRoutes) {
-      const comp = computed as any;
-      const rejectedList = (comp?.rejected_corridors && comp.rejected_corridors.length > 0)
+      const rejectedList: Array<{ id: string; name: string; reason: string; distanceKm: string }> = (comp?.rejected_corridors && comp.rejected_corridors.length > 0)
         ? comp.rejected_corridors.map((r: any) => ({
             id: r.id,
             name: r.name,

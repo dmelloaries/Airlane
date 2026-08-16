@@ -11,8 +11,8 @@ export async function saveFileToDisk(
   try {
     const isBinary = content instanceof Uint8Array;
     const blob = isBinary
-      ? new Blob([content as Uint8Array], { type: mimeType || "application/pdf" })
-      : new Blob([content as string], { type: mimeType || "application/json" });
+      ? new Blob([content as BlobPart], { type: mimeType || "application/pdf" })
+      : new Blob([content as BlobPart], { type: mimeType || "application/json" });
 
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");

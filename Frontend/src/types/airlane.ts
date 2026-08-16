@@ -198,6 +198,18 @@ export interface SafetyCase {
   insufficient_data_corridors?: string[];
 }
 
+export interface CorridorComputed {
+  id: string;
+  name: string;
+  hazard_exposure: HazardExposure;
+  tier: TierEvaluation;
+  obstacles: ObstacleRisk[];
+  landing_zones: LandingZone[];
+  environmental_risk?: EnvironmentalRisk;
+  wind?: WindEvaluation;
+  total_distance_m: number;
+}
+
 export interface AnalysisParameters {
   offset_distance_m: number;
   sample_spacing_m: number;
@@ -212,36 +224,9 @@ export interface AnalysisResult {
   parameters: AnalysisParameters;
   corridors: CorridorData[];
   computed: {
-    corridor_a: {
-      id: string;
-      name: string;
-      hazard_exposure: HazardExposure;
-      tier: TierEvaluation;
-      obstacles: ObstacleRisk[];
-      landing_zones: LandingZone[];
-      environmental_risk?: EnvironmentalRisk;
-      total_distance_m: number;
-    };
-    corridor_b: {
-      id: string;
-      name: string;
-      hazard_exposure: HazardExposure;
-      tier: TierEvaluation;
-      obstacles: ObstacleRisk[];
-      landing_zones: LandingZone[];
-      environmental_risk?: EnvironmentalRisk;
-      total_distance_m: number;
-    };
-    corridor_c: {
-      id: string;
-      name: string;
-      hazard_exposure: HazardExposure;
-      tier: TierEvaluation;
-      obstacles: ObstacleRisk[];
-      landing_zones: LandingZone[];
-      environmental_risk?: EnvironmentalRisk;
-      total_distance_m: number;
-    };
+    corridor_a: CorridorComputed;
+    corridor_b: CorridorComputed;
+    corridor_c: CorridorComputed;
     comparison: ComputedComparison;
   };
   computed_comparison: ComputedComparison;

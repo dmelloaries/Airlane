@@ -195,7 +195,13 @@ export function buildFormattedPart108Json(result: AnalysisResult): FormattedPart
 
   // Aggregate all hazards & obstacles across candidate corridors dynamically from real computed data
   const hazardRegistry: FormattedPart108Export["hazard_and_obstacle_registry"] = [];
-  Object.entries(computed).forEach(([corrKey, cData]) => {
+  const corridorKeys: Array<"corridor_a" | "corridor_b" | "corridor_c"> = [
+    "corridor_a",
+    "corridor_b",
+    "corridor_c",
+  ];
+  corridorKeys.forEach((corrKey) => {
+    const cData = computed[corrKey];
     if (cData && Array.isArray(cData.obstacles)) {
       const isRec = corrKey === sc.recommended_corridor;
       const meta = corridors.find((c) => c.id === corrKey);
