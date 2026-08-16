@@ -179,8 +179,9 @@ export const LiveAnalysisOverlay: React.FC<LiveAnalysisOverlayProps> = ({
               <div className="grid grid-cols-4 sm:grid-cols-8 gap-1.5 text-center font-mono text-[10px]">
                 {PIPELINE_STEPS.map((step, idx) => {
                   const stepIndex = idx + 1;
-                  const isCompleted = currentStageIndex > stepIndex;
-                  const isCurrent = currentStageIndex === stepIndex;
+                  const isParallelStage = stepIndex >= 3 && stepIndex <= 6;
+                  const isCompleted = isParallelStage ? currentStageIndex >= 7 : currentStageIndex > stepIndex;
+                  const isCurrent = isParallelStage ? (currentStageIndex >= 3 && currentStageIndex < 7) : currentStageIndex === stepIndex;
                   return (
                     <div
                       key={step.key}
@@ -240,16 +241,40 @@ export const LiveAnalysisOverlay: React.FC<LiveAnalysisOverlayProps> = ({
             ) : (
               <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-xs space-y-2.5 font-mono text-xs">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-100 font-bold text-slate-900">
-                  <span>8-STAGE SAFETY COMPLIANCE MATRIX</span>
+                  <div className="flex items-center gap-2">
+                    <span>8-STAGE SAFETY COMPLIANCE MATRIX</span>
+                    {currentStageIndex >= 3 && currentStageIndex < 7 && (
+                      <span className="px-1.5 py-0.2 rounded bg-sky-50 text-sky-700 border border-sky-200 text-[9px] font-bold animate-pulse">
+                        PARALLEL INGESTION
+                      </span>
+                    )}
+                  </div>
                   <span className="text-[10px] text-slate-400">FAA PART 108</span>
                 </div>
 
                 <div className="space-y-1.5">
                   {PIPELINE_STEPS.map((step, idx) => {
                     const stepIndex = idx + 1;
-                    const isCompleted = currentStageIndex > stepIndex;
-                    const isCurrent = currentStageIndex === stepIndex;
-                    const isPending = currentStageIndex < stepIndex;
+                    const isParallelStage = stepIndex >= 3 && stepIndex <= 6;
+                    
+                    let isCompleted = false;
+                    let isCurrent = false;
+                    let isPending = false;
+
+                    if (isParallelStage) {
+                      // Steps 3-6 execute concurrently in parallel during asyncio.gather()
+                      if (currentStageIndex >= 7) {
+                        isCompleted = true;
+                      } else if (currentStageIndex >= 3) {
+                        isCurrent = true;
+                      } else {
+                        isPending = true;
+                      }
+                    } else {
+                      isCompleted = currentStageIndex > stepIndex;
+                      isCurrent = currentStageIndex === stepIndex;
+                      isPending = currentStageIndex < stepIndex;
+                    }
 
                     return (
                       <div
@@ -277,7 +302,7 @@ export const LiveAnalysisOverlay: React.FC<LiveAnalysisOverlayProps> = ({
                           {isCurrent && (
                             <span className="flex items-center gap-1 text-[10px] text-sky-700 font-bold">
                               <span className="w-2.5 h-2.5 border-2 border-sky-500/40 border-t-sky-600 rounded-full animate-spin" />
-                              COMPUTING
+                              {isParallelStage ? "PARALLEL COMPUTING" : "COMPUTING"}
                             </span>
                           )}
                           {isPending && (
