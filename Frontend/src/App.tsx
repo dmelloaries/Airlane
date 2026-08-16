@@ -398,19 +398,10 @@ export default function App() {
 
     const isDevMockExplicitlyEnabled = import.meta.env.VITE_USE_MOCK_FIXTURE === "true";
 
-    // Hard Guard: Mock fixtures are strictly restricted to explicit dev-only testing
+    // In development mode with mock fixtures explicitly enabled
     if (isDevMockExplicitlyEnabled) {
       console.warn("⚠️ [DEV MODE] VITE_USE_MOCK_FIXTURE is active. Executing simulated dev pipeline.");
       executeSimulatedPipeline(payload);
-      return;
-    }
-
-    if (serverStatus === "offline") {
-      setIsStreaming(false);
-      setActiveView("input");
-      setErrorMessage(
-        "Backend API Server Offline: Live route analysis requires the Airlane backend (http://localhost:8000). Please start the backend service (`python -m uvicorn main:app --port 8000`) and retry. Silent mock fallbacks are permanently disabled."
-      );
       return;
     }
 
@@ -422,13 +413,13 @@ export default function App() {
         setAnalysisResult(result);
         setIsStreaming(false);
         setActiveView("results");
+        setServerStatus("online");
       },
       onError: (err: string) => {
-        // Fail Loudly: Never silently substitute fake mock data on connection drops or backend errors
         setIsStreaming(false);
         setActiveView("input");
         setErrorMessage(
-          `BVLOS Route Analysis Error: ${err}. Real pipeline sensor data could not be computed. Please check your backend logs and retry.`
+          `BVLOS Route Analysis Error: ${err}. If running on Render free tier, the backend may be waking up from sleep (which takes ~30-50 seconds). Please wait a moment and try again.`
         );
       },
     });

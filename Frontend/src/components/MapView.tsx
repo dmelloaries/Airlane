@@ -200,27 +200,36 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
 
     // 3. Draw Rejected Candidate Corridors (DOTTED RED LINES)
     if (showRejectedRoutes) {
-      const rejectedList: Array<{ id: string; name: string; reason: string; distanceKm: string }> = (comp?.rejected_corridors && comp.rejected_corridors.length > 0)
-        ? comp.rejected_corridors.map((r: any) => ({
-            id: r.id,
-            name: r.name,
-            reason: r.reason,
-            distanceKm: "5.41 km",
-          }))
-        : [
-            {
-              id: "corridor_b",
-              name: "Corridor Beta (East Detour)",
-              reason: "Passes within lateral proximity threshold of overhead transmission tower, creating electromagnetic hazard exposure.",
+      const comp = computed?.comparison;
+      const rejectedList: Array<{ id: string; name: string; reason: string; distanceKm: string }> =
+        (comp?.rejected_corridors && comp.rejected_corridors.length > 0)
+          ? comp.rejected_corridors.map((r) => ({
+              id: r.id,
+              name: r.name,
+              reason: r.reason,
               distanceKm: "5.41 km",
-            },
-            {
-              id: "corridor_c",
-              name: "Corridor Gamma (West Detour)",
-              reason: "Traverses higher density suburban zone (Elevated Ground Risk).",
-              distanceKm: "5.92 km",
-            },
-          ];
+            }))
+          : (sc?.rejected_corridors && sc.rejected_corridors.length > 0)
+          ? sc.rejected_corridors.map((r) => ({
+              id: r.id,
+              name: r.name,
+              reason: r.reason,
+              distanceKm: "5.41 km",
+            }))
+          : [
+              {
+                id: "corridor_b",
+                name: "Corridor Beta (East Detour)",
+                reason: "Passes within lateral proximity threshold of overhead transmission tower, creating electromagnetic hazard exposure.",
+                distanceKm: "5.41 km",
+              },
+              {
+                id: "corridor_c",
+                name: "Corridor Gamma (West Detour)",
+                reason: "Traverses higher density suburban zone (Elevated Ground Risk).",
+                distanceKm: "5.92 km",
+              },
+            ];
 
       rejectedList.forEach((rej) => {
         const corrData = corridors?.find((c) => c.id === rej.id);
