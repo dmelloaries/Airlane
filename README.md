@@ -13,8 +13,21 @@
 
 ---
 
+## 🏆 Mireye Build Challenge — Executive Summary
+
+| Challenge Dimension | Airlane Implementation |
+|---|---|
+| **What I Built** | **Airlane** — An autonomous safety agent that analyzes long-distance (BVLOS) drone flight routes, scores hazards, calculates FAA Part 108 ground risk tiers, and generates an auditable flight safety case in seconds. |
+| **Combine Mireye with...** | **Mireye Earth API** (power lines, substations, terrain elevation, building footprints, USFWS wildlife/bird habitats) combined with **FAA Airspace Facility Maps** (legal altitude ceilings), **US Census Bureau** (population density per sq mi), **NOAA Aviation Weather** (live wind speed & gusts), and **Google Gemini** (safety case reasoning). |
+| **The Real Problem** | Commercial drone delivery and inspection flights are becoming legal under FAA Part 108, but route planning is still manual. Operators spend **days cross-checking GIS maps and thousands of dollars on safety consultants** to assess population risk, avoid power lines, and get FAA flight approval. |
+| **Why It's an Agent (Not Just a Map)** | It doesn't just display points on a map — it **reasons, decides, and acts**: generates 3 candidate flight paths (direct and detours), deterministically calculates clearance margins and worst-case population risk, rejects hazardous routes with explicit justifications, and verifies every claim with cited evidence. |
+| **Who Writes the Cheque?** | **1. Drone Delivery Fleets** (e.g., medical and package delivery operators needing fast Part 108 route approval).<br>**2. Utility & Inspection Firms** (power line, pipeline, and rail inspection teams).<br>**3. Drone Aviation Insurers** (underwriting risk and pricing policies based on verified ground hazards).<br>**4. Flight Safety Consultants** (generating FAA waiver safety dossiers in minutes instead of days). |
+
+---
+
 ## 📌 Table of Contents
 
+- [Executive Summary (Mireye Build Challenge)](#-mireye-build-challenge--executive-summary)
 - [Overview](#-overview)
 - [Key Features](#-key-features)
 - [What It Does & How It Works](#-what-it-does--how-it-works)
