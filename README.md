@@ -1,4 +1,9 @@
-# 🚁 Airlane — Autonomous Drone Navigation & BVLOS Safety Engine
+# 🚁 Airlane — Autonomous Drone Navigation & BVLOS Safety Engine 
+
+## 📹 Video Demo
+
+Watch the full autonomous drone navigation demo here: [**Airlane — Autonomous Drone Navigation Agent Demo**](https://app.usevelo.ai/share/227e3541-3366-47ae-a636-205a03f1f063)
+
 
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![React](https://img.shields.io/badge/React-19.0-61DAFB.svg?style=flat&logo=react&logoColor=black)](https://react.dev)
