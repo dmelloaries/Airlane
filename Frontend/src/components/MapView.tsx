@@ -35,13 +35,15 @@ export const MapView: React.FC<MapViewProps> = ({ result }) => {
 
       L.control.zoom({ position: "topright" }).addTo(map);
 
-      L.tileLayer(
-        "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-        {
-          maxZoom: 19,
-          subdomains: "abcd",
-        }
-      ).addTo(map);
+      const cartoKey = (import.meta.env.VITE_CARTO_API_KEY as string | undefined)?.trim();
+      const tileUrl = cartoKey
+        ? `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(cartoKey)}`
+        : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+
+      L.tileLayer(tileUrl, {
+        maxZoom: 19,
+        subdomains: "abcd",
+      }).addTo(map);
 
       mapInstanceRef.current = map;
       layersGroupRef.current = L.layerGroup().addTo(map);
