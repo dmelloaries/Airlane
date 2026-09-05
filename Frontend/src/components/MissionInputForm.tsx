@@ -31,7 +31,7 @@ const PRESETS = [
     name: "Austin Metro Corridor (Raw Coordinates)",
     tag: "Geodesic Test",
     launch: "30.1345, -97.5512",
-    destination: "30.1650, -97.5020",
+    destination: "30.1580, -97.5200",
     offset: 600,
     spacing: 400,
     altitude: 250,

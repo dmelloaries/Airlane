@@ -9,7 +9,7 @@ interface LocationAutocompleteInputProps {
   dotColor: string;
   value: string;
   onChange: (value: string) => void;
-  onSelectPlace?: (place: PlaceSuggestion) => void;
+  onSelectPlace?: (place: PlaceSuggestion | null) => void;
   placeholder?: string;
   required?: boolean;
 }
@@ -40,18 +40,39 @@ export const LocationAutocompleteInput: React.FC<LocationAutocompleteInputProps>
       const results = await fetchPlaceSuggestions(query, 7);
       setSuggestions(results);
       setHighlightedIndex(-1);
+      if (query.trim() && results.length > 0 && onSelectPlace) {
+        onSelectPlace(results[0]);
+      }
     } catch {
       setSuggestions(CURATED_PRESET_PLACES.slice(0, 5));
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [onSelectPlace]);
 
   // Debounce input changes
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = e.target.value;
     onChange(newValue);
     setIsOpen(true);
+
+    // Auto-detect coordinate entry
+    const coordMatch = newValue.match(
+      /^\s*\(?\s*(-?\d{1,3}(?:\.\d+)?)\s*,\s*(-?\d{1,3}(?:\.\d+)?)\s*\)?\s*$/
+    );
+    if (coordMatch) {
+      const lat = parseFloat(coordMatch[1]);
+      const lng = parseFloat(coordMatch[2]);
+      if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+        onSelectPlace?.({
+          label: newValue.trim(),
+          lat,
+          lng,
+          category: "coordinate",
+          badge: "GPS",
+        });
+      }
+    }
 
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
@@ -81,6 +102,9 @@ export const LocationAutocompleteInput: React.FC<LocationAutocompleteInputProps>
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation();
     onChange("");
+    if (onSelectPlace) {
+      onSelectPlace(null);
+    }
     setIsOpen(true);
     loadSuggestions("");
     inputRef.current?.focus();

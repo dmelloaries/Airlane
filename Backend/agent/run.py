@@ -100,6 +100,15 @@ async def execute_pipeline(
     log(f"  • Distance:    {direct_dist_m:.0f}m ({direct_dist_m / 1609.34:.2f} miles)")
     log(f"  ✓ Geocoding completed in {t_geo_1 - t_geo_0:.2f}s.\n")
 
+    # 5.0 km Mireye Credit Conservation Guard
+    max_dist_m = float(os.getenv("MAX_FLIGHT_DISTANCE_KM", "5.0")) * 1000.0
+    if direct_dist_m > max_dist_m:
+        dist_km = direct_dist_m / 1000.0
+        max_km = max_dist_m / 1000.0
+        raise ValueError(
+            f"Flight distance ({dist_km:.2f} km) exceeds the maximum allowed limit of {max_km:.1f} km (Mireye Earth credit protection). Please select endpoints within {max_km:.1f} km."
+        )
+
     # -------------------------------------------------------------------------
     # STEP 1: Generate 3 Geometric Corridors
     # -------------------------------------------------------------------------

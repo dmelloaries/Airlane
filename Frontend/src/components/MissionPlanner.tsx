@@ -5,6 +5,11 @@ import {
   MiniatureCityCanvas,
   type SelectedObjectInfo,
 } from "./MiniatureCityCanvas";
+import {
+  calculateHaversineDistanceKm,
+  resolveCoordinates,
+  MAX_FLIGHT_DISTANCE_KM,
+} from "../utils/geoUtils";
 
 interface MissionPlannerProps {
   onSubmit: (payload: MissionInputPayload) => void;
@@ -18,6 +23,8 @@ const PRESETS = [
     tag: "Silicon Valley Sector",
     launch: "Cubberley Community Center, Palo Alto",
     destination: "Byxbee Park, Baylands Palo Alto",
+    launchCoord: { lat: 37.4172, lng: -122.1084 },
+    destCoord: { lat: 37.4481, lng: -122.1063 },
     offset: 600,
     spacing: 400,
     altitude: 300,
@@ -28,7 +35,9 @@ const PRESETS = [
     name: "Cedar Creek Power Grid",
     tag: "Powerline Clearance",
     launch: "480 Berdoll Ln, Cedar Creek TX",
-    destination: "912 Elm St, Cedar Creek TX",
+    destination: "620 FM 535, Cedar Creek TX",
+    launchCoord: { lat: 30.1395, lng: -97.5462 },
+    destCoord: { lat: 30.155, lng: -97.52 },
     offset: 600,
     spacing: 400,
     altitude: 300,
@@ -36,13 +45,15 @@ const PRESETS = [
     payload: 2.2,
   },
   {
-    name: "Stanford to Moffett Hub",
+    name: "Stanford Innovation Hub",
     tag: "Class D Airspace",
     launch: "Stanford Research Park, Palo Alto",
-    destination: "Moffett Federal Airfield Hub",
-    offset: 750,
-    spacing: 400,
-    altitude: 350,
+    destination: "Stanford Dish Loop Hub, Stanford CA",
+    launchCoord: { lat: 37.4241, lng: -122.148 },
+    destCoord: { lat: 37.4124, lng: -122.164 },
+    offset: 500,
+    spacing: 350,
+    altitude: 300,
     droneClass: "small_uav" as const,
     payload: 1.0,
   },
@@ -55,8 +66,17 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
 }) => {
   const [launch, setLaunch] = useState("Cubberley Community Center, Palo Alto");
   const [destination, setDestination] = useState(
-    "Byxbee Park, Baylands Palo Alto",
+    "Byxbee Park, Baylands Palo Alto"
   );
+  const [launchCoord, setLaunchCoord] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(PRESETS[0].launchCoord);
+  const [destCoord, setDestCoord] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(PRESETS[0].destCoord);
+
   const [offsetM, setOffsetM] = useState(600);
   const [spacingM, setSpacingM] = useState(400);
   const [altitudeFt, setAltitudeFt] = useState(300);
@@ -66,9 +86,25 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
   >("small_uav");
   const [showAdvanced, setShowAdvanced] = useState(false);
 
+  // Compute great-circle baseline distance in km
+  const distanceKm =
+    launchCoord && destCoord
+      ? calculateHaversineDistanceKm(
+          launchCoord.lat,
+          launchCoord.lng,
+          destCoord.lat,
+          destCoord.lng
+        )
+      : null;
+
+  const isDistanceExceeded =
+    distanceKm !== null && distanceKm > MAX_FLIGHT_DISTANCE_KM;
+
   const applyPreset = (preset: (typeof PRESETS)[0]) => {
     setLaunch(preset.launch);
     setDestination(preset.destination);
+    setLaunchCoord(preset.launchCoord);
+    setDestCoord(preset.destCoord);
     setOffsetM(preset.offset);
     setSpacingM(preset.spacing);
     setAltitudeFt(preset.altitude);
@@ -79,6 +115,7 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!launch.trim() || !destination.trim()) return;
+    if (isDistanceExceeded) return;
 
     onSubmit({
       launch: launch.trim(),
@@ -184,7 +221,14 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
               tag="ORIGIN"
               dotColor="bg-sky-600"
               value={launch}
-              onChange={setLaunch}
+              onChange={(val) => {
+                setLaunch(val);
+                const resolved = resolveCoordinates(val);
+                if (resolved) setLaunchCoord(resolved);
+              }}
+              onSelectPlace={(place) =>
+                setLaunchCoord(place ? { lat: place.lat, lng: place.lng } : null)
+              }
               placeholder="Search origin, airport, campus, or coordinates..."
               required
             />
@@ -196,10 +240,57 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
               tag="RECOVERY"
               dotColor="bg-emerald-600"
               value={destination}
-              onChange={setDestination}
+              onChange={(val) => {
+                setDestination(val);
+                const resolved = resolveCoordinates(val);
+                if (resolved) setDestCoord(resolved);
+              }}
+              onSelectPlace={(place) =>
+                setDestCoord(place ? { lat: place.lat, lng: place.lng } : null)
+              }
               placeholder="Search recovery point, park, campus, or coordinates..."
               required
             />
+
+            {/* Real-time Flight Distance & Mireye Credit Protection Status */}
+            {distanceKm !== null ? (
+              isDistanceExceeded ? (
+                <div className="p-3 rounded-md bg-rose-50/95 border border-rose-300 text-rose-900 font-mono text-xs space-y-1.5 shadow-xs animate-in fade-in">
+                  <div className="flex items-center justify-between font-bold">
+                    <div className="flex items-center gap-1.5 text-rose-700">
+                      <span className="text-sm">⚠️</span>
+                      <span>DISTANCE EXCEEDS 5.0 KM LIMIT</span>
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded bg-rose-200 text-rose-900 font-bold text-[11px]">
+                      {distanceKm.toFixed(2)} km
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-rose-700 leading-relaxed font-sans">
+                    Endpoints are <strong>{distanceKm.toFixed(2)} km</strong> apart. Maximum allowed flight distance is <strong>5.0 km</strong> to conserve your <strong>Mireye Earth API</strong> credits and prevent corridor sample overload. Please select points within 5 km.
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between px-3 py-2 bg-emerald-50/80 border border-emerald-200 rounded-md text-xs font-mono text-emerald-800 shadow-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>
+                      FLIGHT DISTANCE: <strong>{distanceKm.toFixed(2)} km</strong>
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-emerald-700 font-bold bg-white px-2 py-0.5 rounded border border-emerald-200">
+                    ✓ SAFE RANGE (≤ 5.0 KM)
+                  </span>
+                </div>
+              )
+            ) : (
+              <div className="flex items-center justify-between px-2.5 py-1.5 bg-slate-50 border border-slate-200/80 rounded-md text-[11px] font-mono text-slate-500">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-400" />
+                  <span>FLIGHT RADIUS CAP: 5.0 KM</span>
+                </div>
+                <span className="text-[10px] text-slate-400">MIREYE CREDIT PROTECTION</span>
+              </div>
+            )}
 
             {/* Advanced Settings Toggle */}
             <div className="pt-1">
@@ -282,16 +373,24 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
               )}
             </div>
 
-            {/* Submit CTA Button: Compact, confident, 6-8px radius */}
+            {/* Submit CTA Button: Compact, confident, with credit protection state */}
             <button
               type="submit"
-              disabled={isLoading}
-              className="w-full py-2.5 px-4 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs sm:text-sm rounded-md shadow-xs transition-colors flex items-center justify-center gap-2 cursor-pointer active:scale-[0.99]"
+              disabled={isLoading || isDistanceExceeded}
+              className={`w-full py-2.5 px-4 font-bold text-xs sm:text-sm rounded-md shadow-xs transition-all flex items-center justify-center gap-2 ${
+                isDistanceExceeded
+                  ? "bg-rose-100 border border-rose-300 text-rose-700 cursor-not-allowed opacity-90"
+                  : "bg-sky-600 hover:bg-sky-700 text-white cursor-pointer active:scale-[0.99]"
+              }`}
             >
               {isLoading ? (
                 <>
                   <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   <span>ANALYZING AIRSPACE...</span>
+                </>
+              ) : isDistanceExceeded ? (
+                <>
+                  <span>⚠️ ROUTE EXCEEDS 5.0 KM (PROTECTED)</span>
                 </>
               ) : (
                 <>

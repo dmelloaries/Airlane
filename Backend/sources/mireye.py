@@ -364,9 +364,12 @@ KNOWN_ADDRESS_COORDINATES = {
     "480 berdoll ln, cedar creek tx": (30.1395, -97.5462),
     "480 berdoll ln, cedar creek, tx": (30.1395, -97.5462),
     "480 berdoll ln": (30.1395, -97.5462),
-    "912 elm st, cedar creek tx": (30.1700, -97.4970),
-    "912 elm st, cedar creek, tx": (30.1700, -97.4970),
-    "912 elm st": (30.1700, -97.4970),
+    "620 fm 535, cedar creek tx": (30.1550, -97.5200),
+    "620 fm 535, cedar creek, tx": (30.1550, -97.5200),
+    "620 fm 535": (30.1550, -97.5200),
+    "912 elm st, cedar creek tx": (30.1550, -97.5200),
+    "912 elm st, cedar creek, tx": (30.1550, -97.5200),
+    "912 elm st": (30.1550, -97.5200),
 
     # Palo Alto Corridor (Cubberley -> Byxbee)
     "cubberley community center": (37.4172, -122.1084),
@@ -393,6 +396,9 @@ KNOWN_ADDRESS_COORDINATES = {
     "moffett federal airfield hub, mountain view": (37.4152, -122.0490),
     "moffett field": (37.4152, -122.0490),
     "moffett field, mountain view ca": (37.4152, -122.0490),
+    "stanford dish loop hub": (37.4124, -122.1640),
+    "stanford dish loop hub, stanford ca": (37.4124, -122.1640),
+    "stanford dish": (37.4124, -122.1640),
 
     # Other Major Silicon Valley Landmarks
     "palo alto airport": (37.4611, -122.1150),

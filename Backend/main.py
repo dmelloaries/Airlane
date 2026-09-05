@@ -145,6 +145,18 @@ async def stream_pipeline(
             }
         })
 
+        # Mireye Credit Protection Guard: Cap flight distance at 5.0 km
+        max_dist_m = float(os.getenv("MAX_FLIGHT_DISTANCE_KM", "5.0")) * 1000.0
+        if direct_dist_m > max_dist_m:
+            dist_km = direct_dist_m / 1000.0
+            max_km = max_dist_m / 1000.0
+            err_msg = (
+                f"Flight distance ({dist_km:.2f} km) exceeds the maximum allowed limit of {max_km:.1f} km "
+                f"(Mireye Earth API credit protection policy). Please choose endpoints within {max_km:.1f} km."
+            )
+            yield sse_event("error", {"error": err_msg})
+            return
+
         # STEP 1: Corridors
         corridors = generate_candidates(
             launch=launch_coord,
@@ -580,6 +592,8 @@ async def analyze_corridors(req: AnalyzeRequest):
             quiet=True
         )
         return JSONResponse(content=result)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -665,12 +679,28 @@ PRESET_PLACES = [
         "badge": "POWER GRID"
     },
     {
-        "label": "912 Elm St, Cedar Creek TX",
-        "secondary": "Cedar Creek, TX 78612 (Safe Corridor Endpoint)",
-        "lat": 30.1700,
-        "lng": -97.4970,
+        "label": "620 FM 535, Cedar Creek TX",
+        "secondary": "Cedar Creek, TX 78612 (Safe Substation Hub)",
+        "lat": 30.1550,
+        "lng": -97.5200,
         "category": "safe_zone",
         "badge": "RECOVERY POINT"
+    },
+    {
+        "label": "912 Elm St, Cedar Creek TX",
+        "secondary": "Cedar Creek, TX 78612 (Safe Corridor Endpoint)",
+        "lat": 30.1550,
+        "lng": -97.5200,
+        "category": "safe_zone",
+        "badge": "RECOVERY POINT"
+    },
+    {
+        "label": "Stanford Dish Loop Hub, Stanford CA",
+        "secondary": "Stanford, CA 94305 (Open Airspace Hub)",
+        "lat": 37.4124,
+        "lng": -122.1640,
+        "category": "safe_zone",
+        "badge": "RECOVERY ZONE"
     },
     {
         "label": "Googleplex HQ, Mountain View",
