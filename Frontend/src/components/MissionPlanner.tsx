@@ -266,7 +266,7 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
                     </span>
                   </div>
                   <p className="text-[11px] text-rose-700 leading-relaxed font-sans">
-                    Endpoints are <strong>{distanceKm.toFixed(2)} km</strong> apart. Maximum allowed flight distance is <strong>5.0 km</strong> to conserve your <strong>Mireye Earth API</strong> credits and prevent corridor sample overload. Please select points within 5 km.
+                    Endpoints are <strong>{distanceKm.toFixed(2)} km</strong> apart. Maximum allowed flight distance is <strong>5.0 km</strong> Please select points within 5 km.
                   </p>
                 </div>
               ) : (
