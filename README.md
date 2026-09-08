@@ -52,7 +52,6 @@ Watch the full autonomous drone navigation demo here: [**Airlane — Autonomous 
   - [Via Interactive Web Dashboard](#via-interactive-web-dashboard)
   - [Via Command-Line Interface (CLI)](#via-command-line-interface-cli)
   - [Via REST API / SSE Stream](#via-rest-api--sse-stream)
-- [Evaluation & Test Suite](#-evaluation--test-suite)
 - [Regulatory Compliance & Disclaimer](#-regulatory-compliance--disclaimer)
 
 ---
@@ -227,7 +226,6 @@ Airlane/
 │   │   └── part108_tiers.json     # Ground risk tier definition schema
 │   ├── evals/                     # Offline evaluation test suites
 │   │   └── test_tier_accuracy.py  # Ground risk tier lookup accuracy benchmark
-│   ├── tests/                     # Unit & integration test suites
 │   ├── db.py                      # PostgreSQL (Neon) & SQLite caching layer
 │   ├── main.py                    # FastAPI application, SSE streamer & endpoints
 │   ├── requirements.txt           # Python dependencies
@@ -391,31 +389,6 @@ curl -X POST "http://localhost:8000/analyze" \
 **Real-Time Server-Sent Events (`GET /analyze/stream`):**
 ```bash
 curl -N "http://localhost:8000/analyze/stream?launch=37.4172,-122.1084&destination=37.4481,-122.1063"
-```
-
----
-
-## 🧪 Evaluation & Test Suite
-
-Airlane includes automated verification tests ensuring deterministic scoring, data ingestion integrity, and zero hallucinations:
-
-```bash
-cd Backend
-
-# Run unit and integration tests across all pipeline phases
-python -m unittest discover tests/
-
-# Run ground risk tier accuracy evaluation
-python -m evals.test_tier_accuracy
-
-# Run individual phase unit tests
-python tests/test_phase1.py          # Corridor geometry & Bézier curvature
-python tests/test_phase3_faa.py      # FAA airspace ceiling ingestion
-python tests/test_phase4_census.py   # Census tract & tier classification
-python tests/test_phase5_noaa.py     # NOAA METAR wind risk evaluation
-python tests/test_phase6_compute.py  # Pure deterministic compute scoring
-python tests/test_phase7_reason.py   # Gemini reasoning & JSON formatting
-python tests/test_phase9_api.py      # FastAPI HTTP & SSE stream validation
 ```
 
 ---
