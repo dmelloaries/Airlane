@@ -207,10 +207,11 @@ def _build_deterministic_fallback(computed_data: Dict[str, Any]) -> Dict[str, An
     rec_haz = corr_info.get("hazard_exposure", {})
     rec_data_insufficient = bool(rec_haz.get("data_insufficient", False))
     hazard_score = rec_haz.get("hazard_exposure_score", 0.0)
+    sample_count = rec_haz.get("total_points", len(corr_info.get("sample_points", [])))
+    corr_dist = corr_info.get("total_distance_m", 0.0)
     silent_failure = (
         rec_data_insufficient or
-        (hazard_score == 0.0 and len(landing_zones) == 0 and len(obstacles) == 0 and
-         rec_haz.get("min_transmission_distance_m") is None)
+        (sample_count <= 1 and corr_dist < 100.0)
     )
 
     # Standardize rejected corridors structure
@@ -349,10 +350,11 @@ def generate_safety_case(computed_data: Dict[str, Any]) -> Dict[str, Any]:
     rec_hazard_score = rec_haz.get("hazard_exposure_score", 0.0)
     rec_landing_zones = rec_corr_info.get("landing_zones", [])
     rec_obstacles = rec_corr_info.get("obstacles", [])
+    rec_sample_count = rec_haz.get("total_points", len(rec_corr_info.get("sample_points", [])))
+    rec_corr_dist = rec_corr_info.get("total_distance_m", 0.0)
     silent_failure = (
         rec_data_insufficient or
-        (rec_hazard_score == 0.0 and len(rec_landing_zones) == 0 and len(rec_obstacles) == 0 and
-         rec_haz.get("min_transmission_distance_m") is None)
+        (rec_sample_count <= 1 and rec_corr_dist < 100.0)
     )
 
     # Build ultra-compact prompt payload (~300 tokens)

@@ -100,6 +100,12 @@ async def execute_pipeline(
     log(f"  • Distance:    {direct_dist_m:.0f}m ({direct_dist_m / 1609.34:.2f} miles)")
     log(f"  ✓ Geocoding completed in {t_geo_1 - t_geo_0:.2f}s.\n")
 
+    # Minimum Distance Guard: Require at least 100m between endpoints
+    if direct_dist_m < 100.0:
+        raise ValueError(
+            f"Flight distance ({direct_dist_m:.1f}m) is too short. Departure and destination endpoints must be distinct locations (minimum 100m apart)."
+        )
+
     # 5.0 km Mireye Credit Conservation Guard
     max_dist_m = float(os.getenv("MAX_FLIGHT_DISTANCE_KM", "5.0")) * 1000.0
     if direct_dist_m > max_dist_m:

@@ -145,6 +145,15 @@ async def stream_pipeline(
             }
         })
 
+        # Minimum Distance Guard: Require at least 100m between endpoints
+        if direct_dist_m < 100.0:
+            err_msg = (
+                f"Flight distance is too short ({direct_dist_m:.1f}m). "
+                "Departure and destination endpoints must be distinct locations (minimum 100m apart)."
+            )
+            yield sse_event("error", {"error": err_msg})
+            return
+
         # Mireye Credit Protection Guard: Cap flight distance at 5.0 km
         max_dist_m = float(os.getenv("MAX_FLIGHT_DISTANCE_KM", "5.0")) * 1000.0
         if direct_dist_m > max_dist_m:
@@ -245,8 +254,30 @@ async def stream_pipeline(
         obs_b = obstacle_risk(corr_b.sample_points, data_b["mireye_points"], cruise_altitude_ft=cruise_alt_ft)
         obs_c = obstacle_risk(corr_c.sample_points, data_c["mireye_points"], cruise_altitude_ft=cruise_alt_ft)
 
+        # Check if Mireye points actually failed across the corridor
+        m_pts_a = data_a.get("mireye_points", [])
+        mireye_failed = bool(
+            m_pts_a and all(
+                isinstance(m, dict) and str(m.get("status", "")).upper() in ("UNKNOWN", "FAILED")
+                for m in m_pts_a
+            )
+        )
+
         elapsed = int((time.time() - t_start) * 1000)
-        if obs_a:
+        if mireye_failed:
+            yield sse_event("trace", {
+                "step": "mireye_hazards",
+                "message": "⚠ Mireye: Infrastructure telemetry unavailable or degraded (sentinel defaults applied)",
+                "status": "complete",
+                "category": "sensor",
+                "level": "warning",
+                "source_name": "Mireye Earth API",
+                "agent_thought": "Mireye 345kV infrastructure telemetry fetch failed or returned degraded records. Flagging data caveats.",
+                "elapsed_ms": elapsed,
+                "corridor_id": "corridor_a",
+                "metrics": { "telemetry_status": "DEGRADED", "data_insufficient": True }
+            })
+        elif obs_a:
             first_obs = obs_a[0]
             kv_info = f"{first_obs.get('voltage_kv', 0):.0f}kV, " if first_obs.get("voltage_kv") else ""
             yield sse_event("trace", {
@@ -524,21 +555,40 @@ async def stream_pipeline(
         latency_s = round(t_end - t_start, 2)
         elapsed = int((t_end - t_start) * 1000)
 
+        is_insufficient = bool(
+            verified_safety_case.get("data_insufficient") or
+            verified_safety_case.get("data_failure_warning") or
+            verified_safety_case.get("confidence_score", 1.0) < 0.5
+        )
+
+        verif_msg = (
+            f"⚠ Safety case synthesized with telemetry caveats (Confidence: {verified_safety_case['confidence_score']:.2f})"
+            if is_insufficient else
+            f"✓ Safety case synthesized and provenance citations verified (Confidence: {verified_safety_case['confidence_score']:.2f})"
+        )
+        verif_level = "warning" if is_insufficient else "success"
+        verif_thought = (
+            f"Telemetry caveats detected. Final confidence rating capped at {verified_safety_case['confidence_score'] * 100:.0f}% with explicit audit warnings."
+            if is_insufficient else
+            f"Validated all four external citations against live telemetry. Final confidence rating: {verified_safety_case['confidence_score'] * 100:.0f}%."
+        )
+
         yield sse_event("trace", {
             "step": "verification",
-            "message": f"✓ Safety case synthesized and provenance citations verified (Confidence: {verified_safety_case['confidence_score']:.2f})",
+            "message": verif_msg,
             "status": "complete",
             "category": "agent",
-            "level": "success",
+            "level": verif_level,
             "source_name": "Provenance & Confidence Verifier",
-            "agent_thought": f"Validated all four external citations against live telemetry. Final confidence rating: {verified_safety_case['confidence_score'] * 100:.0f}%.",
+            "agent_thought": verif_thought,
             "elapsed_ms": elapsed,
             "confidence_score": verified_safety_case["confidence_score"],
             "metrics": {
                 "confidence_score": verified_safety_case["confidence_score"],
                 "confidence_percent": f"{verified_safety_case['confidence_score'] * 100:.0f}%",
                 "citations_verified": len(verified_safety_case.get("provenance_citations", [])),
-                "total_pipeline_latency_s": latency_s
+                "total_pipeline_latency_s": latency_s,
+                "data_insufficient": is_insufficient
             }
         })
 

@@ -100,6 +100,12 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
   const isDistanceExceeded =
     distanceKm !== null && distanceKm > MAX_FLIGHT_DISTANCE_KM;
 
+  const isDistanceTooShort =
+    (distanceKm !== null && distanceKm < 0.1) ||
+    (launch.trim() !== "" &&
+      destination.trim() !== "" &&
+      launch.trim().toLowerCase() === destination.trim().toLowerCase());
+
   const applyPreset = (preset: (typeof PRESETS)[0]) => {
     setLaunch(preset.launch);
     setDestination(preset.destination);
@@ -115,7 +121,7 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!launch.trim() || !destination.trim()) return;
-    if (isDistanceExceeded) return;
+    if (isDistanceExceeded || isDistanceTooShort) return;
 
     onSubmit({
       launch: launch.trim(),
@@ -266,7 +272,22 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
                     </span>
                   </div>
                   <p className="text-[11px] text-rose-700 leading-relaxed font-sans">
-                    Endpoints are <strong>{distanceKm.toFixed(2)} km</strong> apart. Maximum allowed flight distance is <strong>5.0 km</strong> Please select points within 5 km.
+                    Endpoints are <strong>{distanceKm.toFixed(2)} km</strong> apart. Maximum allowed flight distance is <strong>5.0 km</strong>. Please select points within 5 km.
+                  </p>
+                </div>
+              ) : isDistanceTooShort ? (
+                <div className="p-3 rounded-md bg-amber-50/95 border border-amber-300 text-amber-900 font-mono text-xs space-y-1.5 shadow-xs animate-in fade-in">
+                  <div className="flex items-center justify-between font-bold">
+                    <div className="flex items-center gap-1.5 text-amber-800">
+                      <span className="text-sm">⚠️</span>
+                      <span>ENDPOINTS ARE TOO CLOSE (MIN 100M)</span>
+                    </div>
+                    <span className="px-1.5 py-0.5 rounded bg-amber-200 text-amber-900 font-bold text-[11px]">
+                      {(distanceKm * 1000).toFixed(0)}m
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-amber-800 leading-relaxed font-sans">
+                    Launch and destination locations must be distinct endpoints (minimum flight distance is 100 meters). Please select different departure and recovery locations.
                   </p>
                 </div>
               ) : (
@@ -376,10 +397,12 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
             {/* Submit CTA Button: Compact, confident, with credit protection state */}
             <button
               type="submit"
-              disabled={isLoading || isDistanceExceeded}
+              disabled={isLoading || isDistanceExceeded || isDistanceTooShort}
               className={`w-full py-2.5 px-4 font-bold text-xs sm:text-sm rounded-md shadow-xs transition-all flex items-center justify-center gap-2 ${
                 isDistanceExceeded
                   ? "bg-rose-100 border border-rose-300 text-rose-700 cursor-not-allowed opacity-90"
+                  : isDistanceTooShort
+                  ? "bg-amber-100 border border-amber-300 text-amber-800 cursor-not-allowed opacity-90"
                   : "bg-sky-600 hover:bg-sky-700 text-white cursor-pointer active:scale-[0.99]"
               }`}
             >
@@ -391,6 +414,10 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
               ) : isDistanceExceeded ? (
                 <>
                   <span>⚠️ ROUTE EXCEEDS 5.0 KM (PROTECTED)</span>
+                </>
+              ) : isDistanceTooShort ? (
+                <>
+                  <span>⚠️ MINIMUM FLIGHT DISTANCE IS 100M</span>
                 </>
               ) : (
                 <>

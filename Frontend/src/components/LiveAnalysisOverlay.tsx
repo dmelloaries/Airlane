@@ -132,23 +132,87 @@ export const LiveAnalysisOverlay: React.FC<LiveAnalysisOverlayProps> = ({
           />
         </div>
 
-        {/* Completion Toast Banner */}
-        {currentStageIndex >= 8 && (
-          <div className="p-3 rounded-lg bg-gradient-to-r from-emerald-50 to-sky-50 border border-emerald-300 text-emerald-900 text-xs font-mono flex items-center justify-between shadow-xs animate-in fade-in duration-300">
-            <div className="flex items-center gap-2.5">
-              <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold shadow-xs">✓</span>
-              <div>
-                <span className="font-bold text-slate-900">Safety Verdict Compiled:</span>
-                <span className="text-emerald-800 ml-1">
-                  Corridor Alpha cleared with verified ground risk assessment (92% Confidence). Loading Safety Case...
+        {/* Dynamic Operational Status Banner */}
+        {(() => {
+          const verificationEvent = events.find((e) => e.step === "verification");
+          const computeEvent = events.find((e) => e.step === "compute_engine");
+          const hasFinishedStage8 = Boolean(verificationEvent || events.some((e) => e.step === "complete"));
+          const confidenceScore =
+            verificationEvent?.confidence_score ??
+            (typeof verificationEvent?.metrics?.confidence_score === "number"
+              ? verificationEvent.metrics.confidence_score
+              : null);
+          const confidencePct = confidenceScore !== null ? Math.round(confidenceScore * 100) : null;
+          const recName = (computeEvent?.metrics?.recommended as string) || "Corridor Alpha";
+          const hasDegradationOrFailure =
+            events.some((e) => e.level === "error" || (e.level === "warning" && e.step === "mireye_hazards")) ||
+            (confidenceScore !== null && confidenceScore < 0.5);
+
+          if (!hasFinishedStage8 && currentStageIndex >= 8) {
+            return (
+              <div className="p-3 rounded-lg bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-300 text-sky-900 text-xs font-mono flex items-center justify-between shadow-xs animate-in fade-in duration-300">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-sky-600 text-white flex items-center justify-center text-[10px] font-bold shadow-xs">
+                    <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                  </span>
+                  <div>
+                    <span className="font-bold text-slate-900">Synthesizing Safety Case:</span>
+                    <span className="text-sky-800 ml-1">
+                      Reasoning layer compiling formal FAA Part 108 filing & verifying provenance citations...
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[10px] bg-sky-600 text-white px-2.5 py-0.5 rounded-full font-bold uppercase animate-pulse">
+                  SYNTHESIZING
                 </span>
               </div>
-            </div>
-            <span className="text-[10px] bg-emerald-600 text-white px-2.5 py-0.5 rounded-full font-bold uppercase animate-pulse">
-              100% READY
-            </span>
-          </div>
-        )}
+            );
+          }
+
+          if (hasFinishedStage8 && hasDegradationOrFailure) {
+            return (
+              <div className="p-3 rounded-lg bg-gradient-to-r from-amber-50 to-rose-50 border border-amber-300 text-amber-900 text-xs font-mono flex items-center justify-between shadow-xs animate-in fade-in duration-300">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-amber-600 text-white flex items-center justify-center text-[10px] font-bold shadow-xs">
+                    ⚠
+                  </span>
+                  <div>
+                    <span className="font-bold text-slate-900">Safety Case Compiled with Caveats:</span>
+                    <span className="text-amber-800 ml-1">
+                      {recName} evaluated with telemetry caveats{confidencePct !== null ? ` (${confidencePct}% Confidence)` : ""}. Preparing Safety Case Audit...
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[10px] bg-amber-600 text-white px-2.5 py-0.5 rounded-full font-bold uppercase animate-pulse">
+                  CAVEATS FLAGGED
+                </span>
+              </div>
+            );
+          }
+
+          if (hasFinishedStage8 && !hasDegradationOrFailure) {
+            return (
+              <div className="p-3 rounded-lg bg-gradient-to-r from-emerald-50 to-sky-50 border border-emerald-300 text-emerald-900 text-xs font-mono flex items-center justify-between shadow-xs animate-in fade-in duration-300">
+                <div className="flex items-center gap-2.5">
+                  <span className="w-5 h-5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[10px] font-bold shadow-xs">
+                    ✓
+                  </span>
+                  <div>
+                    <span className="font-bold text-slate-900">Safety Verdict Compiled:</span>
+                    <span className="text-emerald-800 ml-1">
+                      {recName} cleared with verified ground risk assessment{confidencePct !== null ? ` (${confidencePct}% Confidence)` : ""}. Loading Safety Case...
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[10px] bg-emerald-600 text-white px-2.5 py-0.5 rounded-full font-bold uppercase animate-pulse">
+                  100% READY
+                </span>
+              </div>
+            );
+          }
+
+          return null;
+        })()}
       </div>
 
       {/* Main View Area according to viewMode */}
@@ -256,14 +320,20 @@ export const LiveAnalysisOverlay: React.FC<LiveAnalysisOverlayProps> = ({
                   {PIPELINE_STEPS.map((step, idx) => {
                     const stepIndex = idx + 1;
                     const isParallelStage = stepIndex >= 3 && stepIndex <= 6;
-                    
+                    const stepEvents = events.filter((e) => e.step === step.key);
+                    const latestEvent = stepEvents.length > 0 ? stepEvents[stepEvents.length - 1] : null;
+                    const hasError = stepEvents.some((e) => e.level === "error" || e.status === "failed");
+                    const hasWarning = stepEvents.some(
+                      (e) => e.level === "warning" || (e.message && e.message.toLowerCase().includes("degraded"))
+                    );
+
                     let isCompleted = false;
                     let isCurrent = false;
                     let isPending = false;
 
                     if (isParallelStage) {
                       // Steps 3-6 execute concurrently in parallel during asyncio.gather()
-                      if (currentStageIndex >= 7) {
+                      if (currentStageIndex >= 7 || (latestEvent && latestEvent.status === "complete")) {
                         isCompleted = true;
                       } else if (currentStageIndex >= 3) {
                         isCurrent = true;
@@ -271,7 +341,7 @@ export const LiveAnalysisOverlay: React.FC<LiveAnalysisOverlayProps> = ({
                         isPending = true;
                       }
                     } else {
-                      isCompleted = currentStageIndex > stepIndex;
+                      isCompleted = currentStageIndex > stepIndex || (latestEvent && latestEvent.status === "complete" && stepIndex < 8);
                       isCurrent = currentStageIndex === stepIndex;
                       isPending = currentStageIndex < stepIndex;
                     }
@@ -280,7 +350,11 @@ export const LiveAnalysisOverlay: React.FC<LiveAnalysisOverlayProps> = ({
                       <div
                         key={step.key}
                         className={`p-2.5 rounded-lg border flex items-center justify-between transition-colors ${
-                          isCompleted
+                          hasError
+                            ? "bg-rose-50/80 border-rose-200 text-rose-900"
+                            : hasWarning && isCompleted
+                            ? "bg-amber-50/80 border-amber-200 text-amber-900"
+                            : isCompleted
                             ? "bg-slate-50/80 border-slate-200 text-slate-800"
                             : isCurrent
                             ? "bg-sky-50 border-sky-300 text-sky-900 font-bold ring-1 ring-sky-200"
@@ -295,9 +369,19 @@ export const LiveAnalysisOverlay: React.FC<LiveAnalysisOverlayProps> = ({
                         <div className="flex items-center gap-2">
                           <span className="text-[10px] text-slate-400 uppercase hidden sm:inline">{step.source}</span>
                           {isCompleted && (
-                            <span className="px-1.5 py-0.2 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold">
-                              ✓ VERIFIED
-                            </span>
+                            hasError ? (
+                              <span className="px-1.5 py-0.2 rounded bg-rose-100 border border-rose-300 text-rose-800 text-[10px] font-bold">
+                                ✕ FAILED
+                              </span>
+                            ) : hasWarning ? (
+                              <span className="px-1.5 py-0.2 rounded bg-amber-100 border border-amber-300 text-amber-800 text-[10px] font-bold">
+                                ⚠ DEGRADED
+                              </span>
+                            ) : (
+                              <span className="px-1.5 py-0.2 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold">
+                                ✓ VERIFIED
+                              </span>
+                            )
                           )}
                           {isCurrent && (
                             <span className="flex items-center gap-1 text-[10px] text-sky-700 font-bold">
