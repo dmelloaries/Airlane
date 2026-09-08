@@ -39,7 +39,7 @@ _load_env()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
 # Active validated model
-PRIMARY_MODEL = "gemini-flash-latest"
+PRIMARY_MODEL = "gemini-2.0-flash"
 
 SOURCE_ENUM = {
     "INFRASTRUCTURE": "Mireye Earth API",
@@ -430,16 +430,17 @@ ANTI-HALLUCINATION & PROVENANCE CONSISTENCY RULES:
 
             client = genai.Client(api_key=GEMINI_API_KEY)
 
-            for attempt in range(2):
+            candidate_models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"]
+
+            for attempt, candidate_model in enumerate(candidate_models):
                 try:
-                    candidate_model = PRIMARY_MODEL if attempt == 0 else "gemini-2.5-flash"
+                    t0 = time.time()
                     print(f"  [Reasoning Layer] Querying Gemini ({candidate_model})...", flush=True)
                     try:
                         gen_config = types.GenerateContentConfig(
                             response_mime_type="application/json",
                             temperature=0.1,
                             max_output_tokens=1000,
-                            thinking_config=types.ThinkingConfig(thinking_budget=0)
                         )
                     except (AttributeError, TypeError):
                         gen_config = types.GenerateContentConfig(
@@ -461,21 +462,15 @@ ANTI-HALLUCINATION & PROVENANCE CONSISTENCY RULES:
                         if "recommended_corridor" in parsed and "rejected_corridors" in parsed and "part108_tier" in parsed:
                             raw_risks = parsed.get("flagged_risks", [])
                             parsed["flagged_risks"] = _enforce_grounded_citations(raw_risks, computed_data)
-                            t0 = None
-                            print(f"  [Reasoning Layer] ✓ Successfully generated safety case in {t1 - t0:.2f}s.", flush=True)
+                            print(f"  [Reasoning Layer] ✓ Successfully generated safety case with {candidate_model} in {t1 - t0:.2f}s.", flush=True)
                             result = parsed
                             break
 
                 except Exception as exc:
                     exc_str = str(exc).lower()
-                    is_transient = "503" in exc_str or "429" in exc_str or "unavailable" in exc_str or "exhausted" in exc_str
-                    print(f"  [Reasoning Layer Notice] Gemini attempt {attempt+1} ({exc_str[:120]}...)", flush=True)
-
-                    if is_transient and attempt == 0:
-                        time.sleep(0.5)
-                        continue
-                    else:
-                        break
+                    print(f"  [Reasoning Layer Notice] Gemini {candidate_model} attempt {attempt+1} ({exc_str[:120]}...)", flush=True)
+                    time.sleep(0.3)
+                    continue
 
         except Exception as e:
             print(f"  [Reasoning Layer Notice] Client exception: {e}", flush=True)
