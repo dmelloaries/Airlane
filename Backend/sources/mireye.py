@@ -196,8 +196,8 @@ def fetch_batch_from_api(points: List[Tuple[float, float]], max_retries: int = 4
             "Idempotency-Key": idempotency_key
         }
 
-        # Visual log requirement
-        print(f"[Mireye] Sending batch request: {len(chunk_points)} locations", flush=True)
+        if not MIREYE_API_KEY:
+            print("  [Mireye Notice] MIREYE_API_KEY not set in environment — Mireye requests will run unauthenticated.", flush=True)
 
         batch_data = None
         for attempt in range(max_retries):
@@ -211,6 +211,7 @@ def fetch_batch_from_api(points: List[Tuple[float, float]], max_retries: int = 4
                 if resp.status_code == 200:
                     batch_data = resp.json()
                     LAST_RAW_BATCH_RESPONSE = batch_data
+                    print(f"  [Mireye] ✓ Batch request succeeded: {len(chunk_points)} locations fetched (HTTP 200)", flush=True)
                     try:
                         raw_out_path = Path(__file__).parent.parent / "tests" / "raw_mireye_batch_response.json"
                         with open(raw_out_path, "w", encoding="utf-8") as f:

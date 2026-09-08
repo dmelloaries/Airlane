@@ -217,7 +217,7 @@ def fetch_population_density_and_tier(lat: float, lng: float, idx: int = 0, tota
 
     # Check in-memory tract population cache
     if tract_fips in _TRACT_POP_CACHE:
-        print(f"  [Census ACS5] Tract {tract_fips} already cached, skipping API call", flush=True)
+        print(f"  [Census ACS5] Tract {tract_fips} already cached in memory, skipping API call", flush=True)
         pop_estimate = _TRACT_POP_CACHE[tract_fips]
         density = pop_estimate / land_area_sq_mi if land_area_sq_mi > 0 else 500.0
         tier_info = classify_tier(density)
@@ -235,6 +235,28 @@ def fetch_population_density_and_tier(lat: float, lng: float, idx: int = 0, tota
         set_cached_response(cache_key, "census_full", result)
         return result
 
+    # Check persistent DB tract cache
+    cached_tract_pop = get_cached_response(f"census_tract_{tract_fips}")
+    if cached_tract_pop is not None and isinstance(cached_tract_pop, (int, float)):
+        print(f"  [Census ACS5] Tract {tract_fips} found in persistent DB cache ({cached_tract_pop}), skipping API call", flush=True)
+        pop_estimate = float(cached_tract_pop)
+        _TRACT_POP_CACHE[tract_fips] = pop_estimate
+        density = pop_estimate / land_area_sq_mi if land_area_sq_mi > 0 else 500.0
+        tier_info = classify_tier(density)
+        result = {
+            "population": int(pop_estimate),
+            "density_sq_mi": round(density, 1),
+            "land_area_sq_mi": land_area_sq_mi,
+            "tier": tier_info["tier"],
+            "tier_name": tier_info["name"],
+            "tier_description": tier_info.get("description", ""),
+            "tract_fips": tract_fips,
+            "source": "US Census Bureau ACS5 (DB Cached Tract)",
+            "status": "OK"
+        }
+        set_cached_response(cache_key, "census_full", result)
+        return result
+
     print(f"  [Census ACS5] {point_info}: querying ACS5 for tract {tract_fips}...", flush=True)
 
     acs_url = "https://api.census.gov/data/2021/acs/acs5"
@@ -246,38 +268,45 @@ def fetch_population_density_and_tier(lat: float, lng: float, idx: int = 0, tota
     if CENSUS_API_KEY:
         acs_params["key"] = CENSUS_API_KEY
 
-    try:
-        resp = requests.get(acs_url, params=acs_params, timeout=10)
-        if resp.status_code == 200:
-            acs_json = resp.json()
-            if len(acs_json) > 1:
-                pop_estimate = float(acs_json[1][0])
+    for attempt in range(2):
+        try:
+            resp = requests.get(acs_url, params=acs_params, timeout=20)
+            if resp.status_code == 200:
+                acs_json = resp.json()
+                if len(acs_json) > 1:
+                    pop_estimate = float(acs_json[1][0])
 
-                # Memoize tract population
-                _TRACT_POP_CACHE[tract_fips] = pop_estimate
+                    # Memoize tract population in memory and DB
+                    _TRACT_POP_CACHE[tract_fips] = pop_estimate
+                    set_cached_response(f"census_tract_{tract_fips}", "census_tract", pop_estimate)
 
-                density = pop_estimate / land_area_sq_mi if land_area_sq_mi > 0 else 500.0
-                tier_info = classify_tier(density)
+                    density = pop_estimate / land_area_sq_mi if land_area_sq_mi > 0 else 500.0
+                    tier_info = classify_tier(density)
 
-                result = {
-                    "population": int(pop_estimate),
-                    "density_sq_mi": round(density, 1),
-                    "land_area_sq_mi": land_area_sq_mi,
-                    "tier": tier_info["tier"],
-                    "tier_name": tier_info["name"],
-                    "tier_description": tier_info.get("description", ""),
-                    "tract_fips": tract_fips,
-                    "source": "US Census Bureau ACS5 (2021)",
-                    "status": "OK"
-                }
-                set_cached_response(cache_key, "census_full", result)
-                return result
-        else:
-            print(f"  [Census Warning] HTTP {resp.status_code} querying ACS5 for tract {tract_fips}", flush=True)
-    except requests.exceptions.Timeout:
-        print(f"  [Census Timeout] Timed out (10s) querying ACS5 for tract {tract_fips}", flush=True)
-    except Exception as e:
-        print(f"  [Census ACS5 Warning] {e} at ({lat:.4f}, {lng:.4f})", flush=True)
+                    result = {
+                        "population": int(pop_estimate),
+                        "density_sq_mi": round(density, 1),
+                        "land_area_sq_mi": land_area_sq_mi,
+                        "tier": tier_info["tier"],
+                        "tier_name": tier_info["name"],
+                        "tier_description": tier_info.get("description", ""),
+                        "tract_fips": tract_fips,
+                        "source": "US Census Bureau ACS5 (2021)",
+                        "status": "OK"
+                    }
+                    set_cached_response(cache_key, "census_full", result)
+                    return result
+            else:
+                print(f"  [Census Warning] HTTP {resp.status_code} querying ACS5 for tract {tract_fips}", flush=True)
+                break
+        except requests.exceptions.Timeout:
+            if attempt == 0:
+                time.sleep(1.0)
+                continue
+            print(f"  [Census Timeout] Timed out (20s) querying ACS5 for tract {tract_fips}", flush=True)
+        except Exception as e:
+            print(f"  [Census ACS5 Warning] {e} at ({lat:.4f}, {lng:.4f})", flush=True)
+            break
 
     return {
         "population": None,

@@ -203,11 +203,9 @@ def _build_deterministic_fallback(computed_data: Dict[str, Any]) -> Dict[str, An
     landing_zones = corr_info.get("landing_zones", [])
     env_info = corr_info.get("environmental_risk", {}) or corr_info.get("environmental", {})
 
-    # Detect data failure across all corridors
+    # Detect genuine data failure across corridors
     rec_haz = corr_info.get("hazard_exposure", {})
     rec_data_insufficient = bool(rec_haz.get("data_insufficient", False))
-    # Also check if landing zones AND obstacles are both empty AND hazard score is 0
-    # as a secondary signal for data failure even if the flag wasn't propagated
     hazard_score = rec_haz.get("hazard_exposure_score", 0.0)
     silent_failure = (
         rec_data_insufficient or
@@ -434,8 +432,8 @@ ANTI-HALLUCINATION & PROVENANCE CONSISTENCY RULES:
 
             for attempt in range(2):
                 try:
-                    t0 = time.time()
-                    print(f"  [Reasoning Layer] Querying Gemini ({PRIMARY_MODEL})...", flush=True)
+                    candidate_model = PRIMARY_MODEL if attempt == 0 else "gemini-2.5-flash"
+                    print(f"  [Reasoning Layer] Querying Gemini ({candidate_model})...", flush=True)
                     try:
                         gen_config = types.GenerateContentConfig(
                             response_mime_type="application/json",
@@ -451,7 +449,7 @@ ANTI-HALLUCINATION & PROVENANCE CONSISTENCY RULES:
                         )
 
                     response = client.models.generate_content(
-                        model=PRIMARY_MODEL,
+                        model=candidate_model,
                         contents=prompt,
                         config=gen_config
                     )
@@ -463,6 +461,7 @@ ANTI-HALLUCINATION & PROVENANCE CONSISTENCY RULES:
                         if "recommended_corridor" in parsed and "rejected_corridors" in parsed and "part108_tier" in parsed:
                             raw_risks = parsed.get("flagged_risks", [])
                             parsed["flagged_risks"] = _enforce_grounded_citations(raw_risks, computed_data)
+                            t0 = None
                             print(f"  [Reasoning Layer] ✓ Successfully generated safety case in {t1 - t0:.2f}s.", flush=True)
                             result = parsed
                             break

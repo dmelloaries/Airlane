@@ -68,10 +68,11 @@ def score_corridor_hazard_exposure(
         sub_val, sub_status = get_field_info(mireye, "nearest_substation_distance_m", None)
         trans_val, trans_status = get_field_info(mireye, "nearest_transmission_line_distance_m", None)
 
-        # Track whether this point has a genuine data failure (not just legitimate 'absent')
+        # Track whether this point has a genuine data failure vs legitimate 'absent' status
+        pt_m_status = str(mireye.get("status", "OK")).upper() if isinstance(mireye, dict) else "UNKNOWN"
         point_is_failed = (
-            (sub_status in ("unknown", "failed") or sub_val is None) and
-            (trans_status in ("unknown", "failed") or trans_val is None)
+            pt_m_status in ("UNKNOWN", "FAILED") or
+            (sub_status in ("unknown", "failed") and trans_status in ("unknown", "failed"))
         )
         if point_is_failed:
             failed_point_count += 1
@@ -110,9 +111,9 @@ def score_corridor_hazard_exposure(
             "data_status": "failed" if point_is_failed else "ok"
         })
 
-    # data_insufficient = True when ALL points have no real data (total fetch failure)
-    # This is the critical flag that prevents false "verified safe" output
-    data_insufficient = (total_point_count > 0 and len(substation_distances) == 0 and len(transmission_distances) == 0)
+    # data_insufficient is True ONLY when ALL points genuinely failed to fetch (failed_point_count == total_point_count).
+    # Legitimate 'absent' status (no power lines in the area) is valid hazard clearance data, not a fetch failure.
+    data_insufficient = (total_point_count > 0 and failed_point_count == total_point_count)
     data_sufficient_points = total_point_count - failed_point_count
 
     # Internal sentinel values for scoring comparisons only — NEVER display these to users

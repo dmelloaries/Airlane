@@ -180,16 +180,20 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
         {/* Top Operational Status Ribbon */}
         <div className="flex flex-wrap items-center justify-between gap-3 text-xs font-mono">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-slate-400 font-bold uppercase">AUTONOMOUS VERDICT:</span>
-            <span className="font-bold text-slate-900">{sc.recommended_name || "Corridor Alpha"}</span>
+            <span className={`w-2 h-2 rounded-full ${hasDataFailure ? 'bg-red-500' : 'bg-emerald-500 animate-pulse'}`} />
+            <span className="text-slate-400 font-bold uppercase">
+              {hasDataFailure ? 'SAFETY CASE STATUS:' : 'AUTONOMOUS VERDICT:'}
+            </span>
+            <span className={`font-bold ${hasDataFailure ? 'text-red-700' : 'text-slate-900'}`}>
+              {hasDataFailure ? 'AUTHORIZATION DENIED (DATA INSUFFICIENT)' : (sc.recommended_name || "Corridor Alpha")}
+            </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-300 font-bold">
-              FAA {currentTier.toUpperCase()}
+            <span className={`px-2 py-0.5 rounded font-bold border ${hasDataFailure ? 'bg-red-50 text-red-800 border-red-300' : 'bg-emerald-50 text-emerald-800 border-emerald-300'}`}>
+              {hasDataFailure ? 'DATA UNVERIFIED' : `FAA ${currentTier.toUpperCase()}`}
             </span>
-            <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-300 font-bold">
+            <span className={`px-2 py-0.5 rounded font-bold border ${hasDataFailure ? 'bg-amber-50 text-amber-800 border-amber-300' : 'bg-sky-50 text-sky-800 border-sky-300'}`}>
               CONFIDENCE {confidencePct}%
             </span>
             <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200 font-bold">
@@ -202,15 +206,17 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
         <div className="flex flex-col xl:flex-row xl:items-end justify-between gap-6">
           <div className="space-y-2.5 max-w-4xl">
             <div className="flex items-center gap-2 text-xs font-mono text-slate-500 uppercase tracking-wider">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-              <span>RECOMMENDED FLIGHT CORRIDOR</span>
+              <span className={`w-1.5 h-1.5 rounded-full ${hasDataFailure ? 'bg-red-600' : 'bg-emerald-600'}`} />
+              <span>{hasDataFailure ? 'SAFETY CASE EVALUATION FAILED' : 'RECOMMENDED FLIGHT CORRIDOR'}</span>
             </div>
-            <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-[72px] xl:text-[78px] text-slate-950 font-instrument leading-[1.02] tracking-tight">
-              {sc.recommended_name || "Corridor Alpha"} is the safest route
+            <h1 className={`text-5xl sm:text-6xl md:text-7xl lg:text-[72px] xl:text-[78px] font-instrument leading-[1.02] tracking-tight ${hasDataFailure ? 'text-red-950' : 'text-slate-950'}`}>
+              {hasDataFailure ? 'No corridor can be verified safe' : `${sc.recommended_name || "Corridor Alpha"} is the safest route`}
             </h1>
             <p className="text-lg sm:text-xl md:text-2xl text-slate-600 max-w-3xl font-normal leading-relaxed font-instrument">
-              {sc.primary_justification ||
-                `${recommendedData.name} maintains verified ${recommendedData.minClearanceM !== null ? `${recommendedData.minClearanceM.toFixed(1)}m` : 'safe'} lateral clearance from transmission infrastructure, operates 100% within FAA 400ft Class D airspace ceilings, and avoids dense population clusters.`}
+              {hasDataFailure
+                ? (sc.data_failure_warning || "Telemetry feeds returned insufficient or degraded data. Under FAA Part 108, BVLOS flight cannot be authorized without verified ground risk and obstacle clearance.")
+                : (sc.primary_justification ||
+                  `${recommendedData.name} maintains verified ${recommendedData.minClearanceM !== null ? `${recommendedData.minClearanceM.toFixed(1)}m` : 'safe'} lateral clearance from transmission infrastructure, operates 100% within FAA 400ft Class D airspace ceilings, and avoids dense population clusters.`)}
             </p>
           </div>
 
