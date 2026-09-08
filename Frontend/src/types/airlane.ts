@@ -276,6 +276,10 @@ export interface MissionInputPayload {
   sample_spacing_m?: number;
   cruise_altitude_ft?: number;
   drone_class?: "micro_uav" | "small_uav" | "medium_uav";
+  launch_lat?: number;
+  launch_lng?: number;
+  dest_lat?: number;
+  dest_lng?: number;
 }
 
 export interface PlaceSuggestion {

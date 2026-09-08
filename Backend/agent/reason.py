@@ -1,14 +1,15 @@
 """
 Reasoning Layer agent module (Phase 7).
 
-Uses Gemini (gemini-flash-latest) via google-genai SDK to generate structured safety case JSON.
+Uses Gemini (gemini-flash-latest) via official Gemini REST API (v1beta) to generate structured safety case JSON.
 Prompt instructs model to evaluate 3 scored geometric corridors (A, B, C), affirm the pre-computed optimal corridor,
 explain the explicit rejection of the 2 losing corridors based on computed metrics and cited facts, and maintain strict JSON output.
 
-Performance & Latency Optimizations:
-- Compact JSON payload extraction (~300 tokens instead of 20,000+ token raw point dumps) for <1.5s latency.
-- Direct model targeting (gemini-flash-latest) with zero cycling through dead/404 endpoints.
-- Single fast retry (0.5s) on temporary 503/429 spikes, falling back instantly to deterministic safety case if API is unavailable.
+Performance & Reliability:
+- Direct model targeting (gemini-flash-latest) with gemini-2.5-flash fallback.
+- Exponential backoff (1.5s, 3.0s, 6.0s) on temporary 503 high demand / 429 rate limits.
+- Immediate model progression on 404 without wasteful retries.
+- Transparent diagnostic logging (model, HTTP status, retry number, failure reason).
 - Structured 'category' enum for 100% deterministic source attribution.
 """
 
@@ -18,6 +19,7 @@ import time
 import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Union
+import requests
 
 
 def _load_env():
@@ -27,19 +29,51 @@ def _load_env():
         with open(env_path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
-                if line and not line.startswith("#") and "=" in line:
-                    k, v = line.split("=", 1)
-                    k = k.strip()
-                    v = v.strip().strip("'").strip('"')
-                    os.environ.setdefault(k, v)
+                if line and not line.startswith("#"):
+                    if "=" in line:
+                        k, v = line.split("=", 1)
+                        k = k.strip()
+                        v = v.strip().strip("'").strip('"')
+                        os.environ.setdefault(k, v)
+                    elif line.startswith("AIzaSy"):
+                        os.environ.setdefault("GOOGLE_API_KEY", line)
 
 
 _load_env()
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 
-# Active validated model
-PRIMARY_MODEL = "gemini-2.0-flash"
+# Active validated model hierarchy (gemini-flash-latest is primary)
+PRIMARY_MODEL = os.getenv("GEMINI_PRIMARY_MODEL", "gemini-flash-latest")
+FALLBACK_MODELS = [
+    m.strip() for m in os.getenv("GEMINI_FALLBACK_MODELS", "gemini-2.5-flash").split(",") if m.strip()
+]
+
+
+def _get_configured_api_keys() -> List[str]:
+    """Retrieve configured Gemini API keys in prioritized order without hardcoding secrets."""
+    keys: List[str] = []
+    k1 = os.getenv("GEMINI_API_KEY", "").strip()
+    if k1:
+        keys.append(k1)
+    k2 = os.getenv("GOOGLE_API_KEY", "").strip()
+    if k2 and k2 not in keys:
+        keys.append(k2)
+
+    env_path = Path(__file__).parent.parent / ".env"
+    if env_path.exists():
+        try:
+            with open(env_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("AIzaSy") and line not in keys:
+                        keys.append(line)
+        except Exception:
+            pass
+
+    # Prioritize standard Google AI keys (AIzaSy...) if present
+    keys.sort(key=lambda k: 0 if k.startswith("AIzaSy") else 1)
+    return keys
 
 SOURCE_ENUM = {
     "INFRASTRUCTURE": "Mireye Earth API",
@@ -326,6 +360,208 @@ def _build_deterministic_fallback(computed_data: Dict[str, Any]) -> Dict[str, An
     return result
 
 
+def _call_gemini_rest(prompt: str, computed_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    Query the official Gemini REST API (v1beta) with exponential backoff for 429/503
+    and immediate advance on 404 (model permanently unavailable).
+
+    Format:
+      POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent
+      Headers:
+        Content-Type: application/json
+        x-goog-api-key: <API_KEY>
+      Body:
+        {
+          "contents": [{"parts": [{"text": "..."}]}],
+          "generationConfig": {
+            "responseMimeType": "application/json",
+            "temperature": 0.1,
+            "maxOutputTokens": 1000
+          }
+        }
+    """
+    api_keys = _get_configured_api_keys()
+    if not api_keys:
+        print("  [Reasoning Layer Notice] No Gemini API key found in environment (GEMINI_API_KEY/GOOGLE_API_KEY).", flush=True)
+        return None
+
+    primary = os.getenv("GEMINI_PRIMARY_MODEL", PRIMARY_MODEL).strip()
+    candidate_models = [primary]
+    for fb in FALLBACK_MODELS:
+        if fb not in candidate_models:
+            candidate_models.append(fb)
+
+    max_retries = 3
+    base_backoff_seconds = 1.5
+
+    payload = {
+        "contents": [
+            {
+                "parts": [
+                    {"text": prompt}
+                ]
+            }
+        ],
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "temperature": 0.1,
+            "maxOutputTokens": 1000
+        }
+    }
+
+    for candidate_model in candidate_models:
+        clean_model = candidate_model.strip()
+        if clean_model.startswith("models/"):
+            clean_model = clean_model[len("models/"):]
+
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{clean_model}:generateContent"
+
+        for key_idx, api_key in enumerate(api_keys):
+            headers = {
+                "Content-Type": "application/json",
+                "x-goog-api-key": api_key
+            }
+            masked_key = f"{api_key[:6]}...{api_key[-4:]}" if len(api_key) > 10 else "***"
+            model_should_advance = False
+
+            for attempt in range(max_retries):
+                t0 = time.time()
+                print(
+                    f"  [Reasoning Layer] Querying Gemini REST API ({clean_model}) [Attempt {attempt + 1}/{max_retries}]...",
+                    flush=True
+                )
+
+                try:
+                    resp = requests.post(url, headers=headers, json=payload, timeout=15.0)
+                    elapsed = time.time() - t0
+                    status = resp.status_code
+
+                    # 1. SUCCESS (200)
+                    if status == 200:
+                        try:
+                            resp_json = resp.json()
+                            candidates = resp_json.get("candidates", [])
+                            if not candidates:
+                                print(
+                                    f"  [Reasoning Layer Error] Model '{clean_model}' returned HTTP 200 but candidates list is empty (possible safety filter): {resp.text[:200]}",
+                                    flush=True
+                                )
+                                break
+
+                            parts = candidates[0].get("content", {}).get("parts", [])
+                            if not parts or "text" not in parts[0]:
+                                print(
+                                    f"  [Reasoning Layer Error] Model '{clean_model}' returned empty candidate parts.",
+                                    flush=True
+                                )
+                                break
+
+                            raw_text = parts[0]["text"]
+                            cleaned_json = _clean_json_text(raw_text)
+                            parsed = json.loads(cleaned_json)
+
+                            # Validate schema requirements
+                            if "recommended_corridor" in parsed and "rejected_corridors" in parsed and "part108_tier" in parsed:
+                                raw_risks = parsed.get("flagged_risks", [])
+                                parsed["flagged_risks"] = _enforce_grounded_citations(raw_risks, computed_data)
+                                print(
+                                    f"  [Reasoning Layer] ✓ Successfully generated safety case with {clean_model} in {elapsed:.2f}s.",
+                                    flush=True
+                                )
+                                return parsed
+                            else:
+                                print(
+                                    f"  [Reasoning Layer Warning] Model '{clean_model}' response missing expected schema keys.",
+                                    flush=True
+                                )
+                                break
+                        except json.JSONDecodeError as jde:
+                            print(
+                                f"  [Reasoning Layer Error] Failed to parse JSON from {clean_model} (attempt {attempt + 1}): {jde}",
+                                flush=True
+                            )
+                            if attempt < max_retries - 1:
+                                time.sleep(1.0)
+                                continue
+                            break
+
+                    # 2. PERMANENT MODEL ERROR (404)
+                    elif status == 404:
+                        print(
+                            f"  [Reasoning Layer Warning] Model '{clean_model}' returned HTTP 404 (model permanently unavailable / not found for v1beta). Skipping retries and advancing to next configured model.",
+                            flush=True
+                        )
+                        model_should_advance = True
+                        break
+
+                    # 3. TEMPORARY OVERLOAD / RATE LIMIT (429 or 503)
+                    elif status in (429, 503):
+                        error_type = "high demand / service unavailable" if status == 503 else "quota / rate limit exceeded"
+                        if attempt < max_retries - 1:
+                            backoff = base_backoff_seconds * (2 ** attempt)
+                            retry_after_hdr = resp.headers.get("Retry-After")
+                            if retry_after_hdr:
+                                try:
+                                    backoff = max(backoff, float(retry_after_hdr))
+                                except ValueError:
+                                    pass
+                            print(
+                                f"  [Reasoning Layer Warning] Model '{clean_model}' returned HTTP {status} ({error_type}) on attempt {attempt + 1}/{max_retries}. Retrying in {backoff:.1f}s via exponential backoff...",
+                                flush=True
+                            )
+                            time.sleep(backoff)
+                            continue
+                        else:
+                            print(
+                                f"  [Reasoning Layer Error] Model '{clean_model}' exhausted all {max_retries} retries (HTTP {status}: {error_type}). Advancing to fallback model.",
+                                flush=True
+                            )
+                            break
+
+                    # 4. AUTH / CLIENT ERROR (400 or 403)
+                    elif status in (400, 403):
+                        err_detail = ""
+                        try:
+                            err_detail = resp.json().get("error", {}).get("message", "")
+                        except Exception:
+                            err_detail = resp.text[:150]
+                        print(
+                            f"  [Reasoning Layer Error] Model '{clean_model}' HTTP {status} using key [{masked_key}]: {err_detail}",
+                            flush=True
+                        )
+                        if "API_KEY_INVALID" in err_detail or "API key not valid" in err_detail:
+                            break
+                        model_should_advance = True
+                        break
+
+                    # 5. OTHER HTTP STATUS
+                    else:
+                        print(
+                            f"  [Reasoning Layer Warning] Model '{clean_model}' returned HTTP {status}: {resp.text[:150]}",
+                            flush=True
+                        )
+                        if attempt < max_retries - 1:
+                            time.sleep(1.0)
+                            continue
+                        break
+
+                except requests.RequestException as req_exc:
+                    print(
+                        f"  [Reasoning Layer Warning] Network exception contacting Gemini ({clean_model}) on attempt {attempt + 1}/{max_retries}: {req_exc}",
+                        flush=True
+                    )
+                    if attempt < max_retries - 1:
+                        backoff = base_backoff_seconds * (2 ** attempt)
+                        time.sleep(backoff)
+                        continue
+                    break
+
+            if model_should_advance:
+                break
+
+    return None
+
+
 def generate_safety_case(computed_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     Phase 7: Generate structured reasoning verdict for 3-corridor comparison using Gemini.
@@ -423,62 +659,10 @@ ANTI-HALLUCINATION & PROVENANCE CONSISTENCY RULES:
 }}
 """
 
-    result = None
-
-    if GEMINI_API_KEY:
-        try:
-            from google import genai
-            from google.genai import types
-
-            client = genai.Client(api_key=GEMINI_API_KEY)
-
-            candidate_models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-flash-latest"]
-
-            for attempt, candidate_model in enumerate(candidate_models):
-                try:
-                    t0 = time.time()
-                    print(f"  [Reasoning Layer] Querying Gemini ({candidate_model})...", flush=True)
-                    try:
-                        gen_config = types.GenerateContentConfig(
-                            response_mime_type="application/json",
-                            temperature=0.1,
-                            max_output_tokens=1000,
-                        )
-                    except (AttributeError, TypeError):
-                        gen_config = types.GenerateContentConfig(
-                            response_mime_type="application/json",
-                            temperature=0.1,
-                            max_output_tokens=1000
-                        )
-
-                    response = client.models.generate_content(
-                        model=candidate_model,
-                        contents=prompt,
-                        config=gen_config
-                    )
-                    t1 = time.time()
-
-                    if response and response.text:
-                        cleaned_json = _clean_json_text(response.text)
-                        parsed = json.loads(cleaned_json)
-                        if "recommended_corridor" in parsed and "rejected_corridors" in parsed and "part108_tier" in parsed:
-                            raw_risks = parsed.get("flagged_risks", [])
-                            parsed["flagged_risks"] = _enforce_grounded_citations(raw_risks, computed_data)
-                            print(f"  [Reasoning Layer] ✓ Successfully generated safety case with {candidate_model} in {t1 - t0:.2f}s.", flush=True)
-                            result = parsed
-                            break
-
-                except Exception as exc:
-                    exc_str = str(exc).lower()
-                    print(f"  [Reasoning Layer Notice] Gemini {candidate_model} attempt {attempt+1} ({exc_str[:120]}...)", flush=True)
-                    time.sleep(0.3)
-                    continue
-
-        except Exception as e:
-            print(f"  [Reasoning Layer Notice] Client exception: {e}", flush=True)
+    result = _call_gemini_rest(prompt, computed_data)
 
     if result is None:
-        print("  [Reasoning Layer] Instantly returned deterministic structured safety case fallback.", flush=True)
+        print("  [Reasoning Layer] Returned deterministic structured safety case fallback.", flush=True)
         result = _build_deterministic_fallback(computed_data)
 
     # POST-PROCESSING: Override safety case when data is insufficient

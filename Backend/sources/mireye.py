@@ -10,7 +10,7 @@ import json
 import os
 from pathlib import Path
 import requests
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 from db import get_cached_response, set_cached_response, get_cached_grid_batch, set_cached_grid_batch
 
 MIREYE_API_KEY = os.getenv("MIREYE_API_KEY") or os.getenv("MIREYE_API_TOKEN", "")
@@ -415,15 +415,15 @@ KNOWN_ADDRESS_COORDINATES = {
 }
 
 
-def geocode_address(address: str) -> Dict[str, Any]:
+def geocode_address(address: str, proximity_coord: Optional[Tuple[float, float]] = None) -> Dict[str, Any]:
     """
     Geocode a raw address string or coordinate tuple/string to (lat, lng) coordinates.
     Supports:
     1. Direct numeric coordinate strings (e.g. "30.1395, -97.5462" or "(37.4172, -122.1084)")
-    2. Cached geocode responses from DB
-    3. Known Demo / Preset Address Lookup Table (exact & fuzzy keyword matching)
+    2. Known Demo / Preset Address Lookup Table (exact & fuzzy keyword matching)
+    3. Cached geocode responses from DB (with US Part 108 sanity check)
     4. Mireye Earth API (/v1/geocode)
-    5. OSM Nominatim fallback for live addresses
+    5. OSM Nominatim fallback for live addresses (constrained to US with proximity viewbox bias)
     """
     import re
     raw_str = address.strip()
@@ -442,36 +442,44 @@ def geocode_address(address: str) -> Dict[str, Any]:
         }
 
     clean_addr = raw_str.lower().strip()
-    cache_key = f"mireye_geocode_{clean_addr}"
-    cached = get_cached_response(cache_key)
-    if cached and cached.get("status") == "OK":
-        return cached
 
     # Case 2: Known Demo Address Lookup Table (Exact match)
     if clean_addr in KNOWN_ADDRESS_COORDINATES:
         k_lat, k_lng = KNOWN_ADDRESS_COORDINATES[clean_addr]
-        res = {
+        return {
             "lat": k_lat,
             "lng": k_lng,
             "normalized_address": raw_str,
             "source": "Grounded Preset Database",
             "status": "OK"
         }
-        set_cached_response(cache_key, "mireye_geocode", res)
-        return res
 
     # Case 2B: Known Address Fuzzy Substring Matching
     for key, (k_lat, k_lng) in KNOWN_ADDRESS_COORDINATES.items():
-        if key in clean_addr or (len(clean_addr) > 5 and clean_addr in key):
-            res = {
+        if key in clean_addr or (len(clean_addr) > 4 and clean_addr in key):
+            return {
                 "lat": k_lat,
                 "lng": k_lng,
                 "normalized_address": raw_str,
                 "source": "Grounded Preset Database (Keyword Match)",
                 "status": "OK"
             }
-            set_cached_response(cache_key, "mireye_geocode", res)
-            return res
+
+    # Case 2C: DB Cache Check (Discard erroneous non-US entries, e.g. positive longitudes in Europe)
+    cache_key = f"mireye_geocode_{clean_addr}"
+    cached = get_cached_response(cache_key)
+    if cached and cached.get("status") == "OK":
+        c_lat = cached.get("lat", 0.0)
+        c_lng = cached.get("lng", 0.0)
+        is_valid_us = (-180.0 <= c_lng <= -65.0) and (18.0 <= c_lat <= 72.0)
+        if is_valid_us:
+            if proximity_coord:
+                from agent.corridor import haversine_distance
+                dist_m = haversine_distance(proximity_coord, (c_lat, c_lng))
+                if dist_m <= 150_000.0:  # within 150 km of origin
+                    return cached
+            else:
+                return cached
 
     # Case 3: Live Mireye /v1/geocode
     if MIREYE_API_KEY:
@@ -488,55 +496,89 @@ def geocode_address(address: str) -> Dict[str, Any]:
             )
             if resp.status_code == 200:
                 data = resp.json()
-                result = {
-                    "lat": float(data.get("lat", 0.0)),
-                    "lng": float(data.get("lng", 0.0)),
-                    "normalized_address": data.get("normalized_address", address),
-                    "source": "Mireye Earth API (/v1/geocode)",
-                    "status": "OK"
-                }
-                set_cached_response(cache_key, "mireye_geocode", result)
-                return result
+                m_lat = float(data.get("lat", 0.0))
+                m_lng = float(data.get("lng", 0.0))
+                if (-180.0 <= m_lng <= -65.0) and (18.0 <= m_lat <= 72.0):
+                    result = {
+                        "lat": m_lat,
+                        "lng": m_lng,
+                        "normalized_address": data.get("normalized_address", address),
+                        "source": "Mireye Earth API (/v1/geocode)",
+                        "status": "OK"
+                    }
+                    set_cached_response(cache_key, "mireye_geocode", result)
+                    return result
         except Exception as e:
             print(f"  [Geocode Notice] Mireye geocode request failed: {e}", flush=True)
 
-    # Case 4: OSM Nominatim Fallback (with progressive query simplifications)
+    # Case 4: OSM Nominatim Fallback (Constrained to US with proximity bias)
     queries_to_try = [
         address,
+        f"{address}, California, US" if not ("tx" in clean_addr or "texas" in clean_addr) else f"{address}, Texas, US",
+        f"{address}, US",
         re.sub(r",\s*baylands", "", address, flags=re.IGNORECASE),
         re.sub(r"\s+hub\b", "", address, flags=re.IGNORECASE),
         address.split(",")[0]
     ]
+
+    nom_url = "https://nominatim.openstreetmap.org/search"
+    nom_headers = {"User-Agent": "AirlaneBVLOSAgent/1.0"}
 
     for q in queries_to_try:
         q_clean = q.strip()
         if not q_clean:
             continue
         try:
-            nom_url = "https://nominatim.openstreetmap.org/search"
-            nom_resp = requests.get(
-                nom_url,
-                params={"q": q_clean, "format": "json", "limit": 1},
-                headers={"User-Agent": "AirlaneBVLOSAgent/1.0"},
-                timeout=6
-            )
+            params: Dict[str, Any] = {
+                "q": q_clean,
+                "format": "json",
+                "limit": 3,
+                "countrycodes": "us"  # FAA Part 108 is strictly US jurisdiction
+            }
+            if proximity_coord:
+                p_lat, p_lng = proximity_coord
+                # Bias Nominatim results to vicinity of launch (+/- 0.75 deg)
+                params["viewbox"] = f"{p_lng - 0.75:.4f},{p_lat + 0.75:.4f},{p_lng + 0.75:.4f},{p_lat - 0.75:.4f}"
+                params["bounded"] = 0
+
+            nom_resp = requests.get(nom_url, params=params, headers=nom_headers, timeout=6)
             if nom_resp.status_code == 200:
                 nom_data = nom_resp.json()
                 if nom_data and len(nom_data) > 0:
-                    result = {
-                        "lat": float(nom_data[0]["lat"]),
-                        "lng": float(nom_data[0]["lon"]),
-                        "normalized_address": nom_data[0].get("display_name", address),
-                        "source": "OpenStreetMap Nominatim",
-                        "status": "OK"
-                    }
-                    set_cached_response(cache_key, "mireye_geocode", result)
-                    return result
+                    chosen = None
+                    if proximity_coord and len(nom_data) > 1:
+                        from agent.corridor import haversine_distance
+                        best_dist = float("inf")
+                        for cand in nom_data:
+                            c_lat = float(cand["lat"])
+                            c_lon = float(cand["lon"])
+                            if -180.0 <= c_lon <= -65.0:
+                                d = haversine_distance(proximity_coord, (c_lat, c_lon))
+                                if d < best_dist:
+                                    best_dist = d
+                                    chosen = cand
+                    if not chosen:
+                        for cand in nom_data:
+                            c_lon = float(cand["lon"])
+                            if -180.0 <= c_lon <= -65.0:
+                                chosen = cand
+                                break
+
+                    if chosen:
+                        result = {
+                            "lat": float(chosen["lat"]),
+                            "lng": float(chosen["lon"]),
+                            "normalized_address": chosen.get("display_name", address),
+                            "source": "OpenStreetMap Nominatim",
+                            "status": "OK"
+                        }
+                        set_cached_response(cache_key, "mireye_geocode", result)
+                        return result
         except Exception as e:
             print(f"  [Geocode Notice] Nominatim fallback for '{q_clean}' failed: {e}", flush=True)
 
     # If all fails, raise RuntimeError with clear instruction
     raise RuntimeError(
         f"Unable to geocode address '{address}'. "
-        f"Please provide valid coordinates '(lat, lng)' or a recognized address."
+        f"Please provide valid coordinates '(lat, lng)' or a recognized US address."
     )

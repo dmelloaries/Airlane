@@ -71,6 +71,10 @@ async def execute_pipeline(
     spacing_m: float = 400.0,
     cruise_alt_ft: float = 300.0,
     drone_class: str = "small_uav",
+    launch_lat: Optional[float] = None,
+    launch_lng: Optional[float] = None,
+    dest_lat: Optional[float] = None,
+    dest_lng: Optional[float] = None,
     quiet: bool = False
 ) -> Dict[str, Any]:
     """
@@ -87,11 +91,32 @@ async def execute_pipeline(
     # -------------------------------------------------------------------------
     log("▶ [Step 0/5] Resolving Launch & Destination Coordinates...")
     t_geo_0 = time.time()
-    geo_launch = geocode_address(launch_input)
-    geo_dest = geocode_address(destination_input)
-    t_geo_1 = time.time()
+    if launch_lat is not None and launch_lng is not None:
+        geo_launch = {
+            "lat": float(launch_lat),
+            "lng": float(launch_lng),
+            "normalized_address": launch_input,
+            "source": "Client Coordinates",
+            "status": "OK"
+        }
+    else:
+        geo_launch = geocode_address(launch_input)
 
     launch_coord = (geo_launch["lat"], geo_launch["lng"])
+
+    if dest_lat is not None and dest_lng is not None:
+        geo_dest = {
+            "lat": float(dest_lat),
+            "lng": float(dest_lng),
+            "normalized_address": destination_input,
+            "source": "Client Coordinates",
+            "status": "OK"
+        }
+    else:
+        geo_dest = geocode_address(destination_input, proximity_coord=launch_coord)
+
+    t_geo_1 = time.time()
+
     dest_coord = (geo_dest["lat"], geo_dest["lng"])
     direct_dist_m = haversine_distance(launch_coord, dest_coord)
 

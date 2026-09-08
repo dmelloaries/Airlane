@@ -57,6 +57,19 @@ const PRESETS = [
     droneClass: "small_uav" as const,
     payload: 1.0,
   },
+  {
+    name: "Oakland to Piedmont",
+    tag: "East Bay Sector",
+    launch: "Oakland, California",
+    destination: "Piedmont, California",
+    launchCoord: { lat: 37.8044, lng: -122.2712 },
+    destCoord: { lat: 37.8244, lng: -122.2316 },
+    offset: 500,
+    spacing: 350,
+    altitude: 300,
+    droneClass: "small_uav" as const,
+    payload: 1.5,
+  },
 ];
 
 export const MissionPlanner: React.FC<MissionPlannerProps> = ({
@@ -130,6 +143,10 @@ export const MissionPlanner: React.FC<MissionPlannerProps> = ({
       sample_spacing_m: spacingM,
       cruise_altitude_ft: altitudeFt,
       drone_class: droneClass,
+      launch_lat: launchCoord?.lat,
+      launch_lng: launchCoord?.lng,
+      dest_lat: destCoord?.lat,
+      dest_lng: destCoord?.lng,
     });
   };
 

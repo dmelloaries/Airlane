@@ -11,7 +11,7 @@ Watch the full autonomous drone navigation demo here: [**Airlane — Autonomous 
 [![Vite](https://img.shields.io/badge/Vite-8.0+-646CFF.svg?style=flat&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-v4.0-38B2AC.svg?style=flat&logo=tailwind-css&logoColor=white)](https://tailwindcss.com)
 [![Leaflet](https://img.shields.io/badge/Leaflet-1.9.4-199900.svg?style=flat&logo=leaflet&logoColor=white)](https://leafletjs.com)
-[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-2.5%20Flash-4285F4.svg?style=flat&logo=google&logoColor=white)](https://ai.google.dev)
+[![Google Gemini](https://img.shields.io/badge/Google%20Gemini-Flash%20Latest-4285F4.svg?style=flat&logo=google&logoColor=white)](https://ai.google.dev)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB.svg?style=flat&logo=python&logoColor=white)](https://www.python.org/)
 
 > **Airlane** is an autonomous mission planning, multi-corridor risk screening, and safety-case generation engine designed for commercial **Beyond Visual Line of Sight (BVLOS)** drone operations under **FAA Part 108**. It ingests ground-truth geospatial data, regulatory airspace maps, demographic density models, and live weather to generate defensible, auditable flight corridors in seconds.
@@ -64,7 +64,7 @@ As the Federal Aviation Administration (FAA) transitions commercial drone delive
 1. Generates 3 distinct geometric flight trajectories (direct path and lateral detours).
 2. Parallel-queries 4 authoritative live data sources (Mireye Earth, FAA ArcGIS, US Census Bureau, NOAA).
 3. Executes a pure mathematical compute engine to evaluate vertical obstacle clearances, worst-case Part 108 ground risk tiers, crosswinds, and landing zones.
-4. Uses Google Gemini 2.5 Flash to synthesize an explainable safety case with explicit rejection rationale for suboptimal paths.
+4. Uses Google Gemini (gemini-flash-latest) to synthesize an explainable safety case with explicit rejection rationale for suboptimal paths.
 5. Emits a real-time Server-Sent Events (SSE) telemetry stream to an interactive flight operations dashboard.
 
 ---
@@ -120,7 +120,7 @@ Airlane executes a structured 6-phase pipeline for every mission request:
                            │
                            ▼
 ┌────────────────────────────────────────────────────────┐
-│  Phase 4: AI Reasoning Layer (Gemini 2.5 Flash)        │
+│  Phase 4: AI Reasoning Layer (Gemini Flash)            │
 │  • Strict JSON Mission Synthesis                       │
 │  • Rejection Rationale for Suboptimal Corridors        │
 │  • Natural-Language Regulatory Justification           │
@@ -171,7 +171,7 @@ All safety calculations are handled by pure, deterministic mathematical function
 - **Multi-Criteria Ranking**: Evaluates Pareto dominance across hazard count, ground risk tier, and flight distance to recommend the winning path and identify rejection causes for losing paths.
 
 ### 4. AI Safety Case Reasoning Layer
-The computed comparison payload is passed to **Google Gemini 2.5 Flash** with strict JSON-schema constraints. The LLM is instructed **never to invent scores or numbers**; its role is strictly to:
+The computed comparison payload is passed to **Google Gemini (gemini-flash-latest)** with strict JSON-schema constraints. The LLM is instructed **never to invent scores or numbers**; its role is strictly to:
 - Synthesize human-readable mission justification.
 - Explain trade-offs between corridors (e.g., *"Corridor B detours around the 345kV transmission line crossed by Corridor A at mile 1.8"*).
 - State explicit reasons for rejecting the other two corridors.
@@ -200,7 +200,7 @@ Airlane integrates four distinct external data providers alongside Google Gemini
 | **Federal Aviation Administration (FAA)** | `FAA_UAS_FacilityMap_Data` on ArcGIS REST FeatureServer | Airspace classification (Class B, C, D, E) and UAS ceiling limits ($0\text{ft} - 400\text{ft}$ AGL). | Verifies maximum legal altitude and controlled airspace boundaries; attaches FAA disclaimers. | Public REST (No Key Required) |
 | **US Census Bureau** | Census Geocoder (`geocoding.geo.census.gov`) & ACS5 API (`api.census.gov/data`) | Coordinates-to-Tract FIPS resolution, 5-year ACS population counts, land area ($\text{m}^2$). | Computes population density ($\text{people/sq mi}$) and assigns FAA Part 108 Ground Risk Tiers 1–5. | `CENSUS_API_KEY` (Free Instant Key) |
 | **NOAA Aviation Weather Center** | `https://aviationweather.gov/data/api/metar` | Real-time METAR weather station reports, wind speed (knots), wind direction, gusts, altimeter. | Evaluates crosswind/tailwind limits against specific drone operating envelopes. | Public REST (No Key Required) |
-| **Google Gemini** | Google GenAI SDK (`gemini-2.5-flash`) | Structured JSON generation for multi-corridor decision reasoning and narrative safety synthesis. | Translates pure mathematical matrices into explainable operator justifications and rejection causes. | `GEMINI_API_KEY` |
+| **Google Gemini** | Gemini REST API (`gemini-flash-latest`) | Structured JSON generation for multi-corridor decision reasoning and narrative safety synthesis. | Translates pure mathematical matrices into explainable operator justifications and rejection causes. | `GEMINI_API_KEY` |
 | **Komoot / Photon** | `https://photon.komoot.io/api` | OpenStreetMap POIs, landmark indexing, street address geocoding fallback. | Real-time mission origin/destination search autocomplete. | Public REST (No Key Required) |
 
 ---
@@ -214,7 +214,7 @@ Airlane/
 │   │   ├── corridor.py            # Phase 1: Great-circle & Bézier corridor generator
 │   │   ├── fetcher.py             # Phase 2: Async parallel fetcher across 4 sources
 │   │   ├── compute.py             # Phase 3: Pure deterministic scoring & ranking engine
-│   │   ├── reason.py              # Phase 4: Gemini 2.5 Flash reasoning layer
+│   │   ├── reason.py              # Phase 4: Gemini Flash reasoning layer
 │   │   ├── verify.py              # Phase 5: Provenance & confidence verification
 │   │   └── run.py                 # End-to-end execution runner & CLI interface
 │   ├── sources/                   # External API client adapters
@@ -412,7 +412,7 @@ Built for the **Mireye Build Challenge**. Special thanks to:
 - **Federal Aviation Administration (FAA)** for open UAS facility airspace data.
 - **US Census Bureau** for tract-level demographic datasets.
 - **NOAA National Weather Service** for open aviation meteorological observations.
-- **Google DeepMind** for the Gemini 2.5 Flash reasoning models.
+- **Google DeepMind** for the Gemini Flash reasoning models.
 
 ---
 

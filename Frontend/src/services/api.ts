@@ -52,6 +52,15 @@ export function streamAnalysis(
     drone_class: payload.drone_class ?? "small_uav",
   });
 
+  if (payload.launch_lat != null && payload.launch_lng != null) {
+    queryParams.set("launch_lat", payload.launch_lat.toString());
+    queryParams.set("launch_lng", payload.launch_lng.toString());
+  }
+  if (payload.dest_lat != null && payload.dest_lng != null) {
+    queryParams.set("dest_lat", payload.dest_lat.toString());
+    queryParams.set("dest_lng", payload.dest_lng.toString());
+  }
+
   const url = `${API_BASE_URL}/analyze/stream?${queryParams.toString()}`;
   let eventSource: EventSource | null = null;
   let isClosed = false;
@@ -131,6 +140,22 @@ export function streamAnalysis(
 import type { PlaceSuggestion } from "../types/airlane";
 
 export const CURATED_PRESET_PLACES: PlaceSuggestion[] = [
+  {
+    label: "Oakland, California",
+    secondary: "Oakland, Alameda County, CA (Downtown Hub)",
+    lat: 37.8044,
+    lng: -122.2712,
+    category: "address",
+    badge: "LAUNCH PAD",
+  },
+  {
+    label: "Piedmont, California",
+    secondary: "Piedmont, Alameda County, CA (Residential Enclave)",
+    lat: 37.8244,
+    lng: -122.2316,
+    category: "address",
+    badge: "RECOVERY POINT",
+  },
   {
     label: "Cubberley Community Center, Palo Alto",
     secondary: "4000 Middlefield Rd, Palo Alto, CA 94303",

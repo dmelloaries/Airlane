@@ -71,6 +71,10 @@ class AnalyzeRequest(BaseModel):
     sample_spacing_m: Optional[float] = Field(400.0, description="Sample point spacing in meters")
     cruise_altitude_ft: Optional[float] = Field(300.0, description="Drone cruise altitude in feet AGL")
     drone_class: Optional[str] = Field("small_uav", description="Drone operating class (micro_uav, small_uav, medium_uav)")
+    launch_lat: Optional[float] = Field(None, description="Direct launch latitude if resolved by client")
+    launch_lng: Optional[float] = Field(None, description="Direct launch longitude if resolved by client")
+    dest_lat: Optional[float] = Field(None, description="Direct destination latitude if resolved by client")
+    dest_lng: Optional[float] = Field(None, description="Direct destination longitude if resolved by client")
 
 
 @app.get("/")
@@ -92,7 +96,11 @@ async def stream_pipeline(
     offset_m: float = 600.0,
     spacing_m: float = 400.0,
     cruise_alt_ft: float = 300.0,
-    drone_class: str = "small_uav"
+    drone_class: str = "small_uav",
+    launch_lat: Optional[float] = None,
+    launch_lng: Optional[float] = None,
+    dest_lat: Optional[float] = None,
+    dest_lng: Optional[float] = None,
 ):
     """
     Async generator yielding Server-Sent Events (SSE) for live agent execution trace.
@@ -116,9 +124,31 @@ async def stream_pipeline(
             "agent_thought": f"Querying Mireye Geocoding service to convert '{launch_input}' and '{destination_input}' into normalized GPS waypoints.",
             "elapsed_ms": elapsed,
         })
-        geo_launch = geocode_address(launch_input)
-        geo_dest = geocode_address(destination_input)
+
+        if launch_lat is not None and launch_lng is not None:
+            geo_launch = {
+                "lat": float(launch_lat),
+                "lng": float(launch_lng),
+                "normalized_address": launch_input,
+                "source": "Client Coordinates",
+                "status": "OK"
+            }
+        else:
+            geo_launch = geocode_address(launch_input)
+
         launch_coord = (geo_launch["lat"], geo_launch["lng"])
+
+        if dest_lat is not None and dest_lng is not None:
+            geo_dest = {
+                "lat": float(dest_lat),
+                "lng": float(dest_lng),
+                "normalized_address": destination_input,
+                "source": "Client Coordinates",
+                "status": "OK"
+            }
+        else:
+            geo_dest = geocode_address(destination_input, proximity_coord=launch_coord)
+
         dest_coord = (geo_dest["lat"], geo_dest["lng"])
         direct_dist_m = haversine_distance(launch_coord, dest_coord)
 
@@ -639,6 +669,10 @@ async def analyze_corridors(req: AnalyzeRequest):
             spacing_m=req.sample_spacing_m or 400.0,
             cruise_alt_ft=req.cruise_altitude_ft or 300.0,
             drone_class=req.drone_class or "small_uav",
+            launch_lat=req.launch_lat,
+            launch_lng=req.launch_lng,
+            dest_lat=req.dest_lat,
+            dest_lng=req.dest_lng,
             quiet=True
         )
         return JSONResponse(content=result)
@@ -655,7 +689,11 @@ async def stream_analysis(
     offset_distance_m: float = Query(600.0, description="Detour perpendicular offset in meters"),
     sample_spacing_m: float = Query(400.0, description="Sample point spacing in meters"),
     cruise_altitude_ft: float = Query(300.0, description="Drone cruise altitude in feet AGL"),
-    drone_class: str = Query("small_uav", description="Drone operating class")
+    drone_class: str = Query("small_uav", description="Drone operating class"),
+    launch_lat: Optional[float] = Query(None, description="Optional pre-resolved launch latitude"),
+    launch_lng: Optional[float] = Query(None, description="Optional pre-resolved launch longitude"),
+    dest_lat: Optional[float] = Query(None, description="Optional pre-resolved destination latitude"),
+    dest_lng: Optional[float] = Query(None, description="Optional pre-resolved destination longitude")
 ):
     """
     Stream real-time agent execution trace steps via Server-Sent Events (SSE) (text/event-stream).
@@ -667,7 +705,11 @@ async def stream_analysis(
             offset_m=offset_distance_m,
             spacing_m=sample_spacing_m,
             cruise_alt_ft=cruise_altitude_ft,
-            drone_class=drone_class
+            drone_class=drone_class,
+            launch_lat=launch_lat,
+            launch_lng=launch_lng,
+            dest_lat=dest_lat,
+            dest_lng=dest_lng
         ),
         media_type="text/event-stream",
         headers={
@@ -680,6 +722,22 @@ async def stream_analysis(
 
 # Curated Landmark & Drone Flight Hub Presets
 PRESET_PLACES = [
+    {
+        "label": "Oakland, California",
+        "secondary": "Oakland, Alameda County, CA (Downtown Hub)",
+        "lat": 37.8044,
+        "lng": -122.2712,
+        "category": "address",
+        "badge": "LAUNCH PAD"
+    },
+    {
+        "label": "Piedmont, California",
+        "secondary": "Piedmont, Alameda County, CA (Residential Enclave)",
+        "lat": 37.8244,
+        "lng": -122.2316,
+        "category": "address",
+        "badge": "RECOVERY POINT"
+    },
     {
         "label": "Cubberley Community Center, Palo Alto",
         "secondary": "4000 Middlefield Rd, Palo Alto, CA 94303",

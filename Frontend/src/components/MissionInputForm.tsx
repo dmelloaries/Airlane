@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import type { MissionInputPayload } from "../types/airlane";
+import { resolveCoordinates } from "../utils/geoUtils";
 
 interface MissionInputFormProps {
   onSubmit: (payload: MissionInputPayload) => void;
@@ -61,6 +62,9 @@ export const MissionInputForm: React.FC<MissionInputFormProps> = ({ onSubmit, is
     e.preventDefault();
     if (!launch.trim() || !destination.trim()) return;
 
+    const lCoord = resolveCoordinates(launch);
+    const dCoord = resolveCoordinates(destination);
+
     onSubmit({
       launch: launch.trim(),
       destination: destination.trim(),
@@ -68,6 +72,10 @@ export const MissionInputForm: React.FC<MissionInputFormProps> = ({ onSubmit, is
       sample_spacing_m: spacingM,
       cruise_altitude_ft: altitudeFt,
       drone_class: droneClass,
+      launch_lat: lCoord?.lat,
+      launch_lng: lCoord?.lng,
+      dest_lat: dCoord?.lat,
+      dest_lng: dCoord?.lng,
     });
   };
 
