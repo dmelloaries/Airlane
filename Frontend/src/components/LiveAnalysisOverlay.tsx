@@ -333,7 +333,7 @@ export const LiveAnalysisOverlay: React.FC<LiveAnalysisOverlayProps> = ({
 
                     if (isParallelStage) {
                       // Steps 3-6 execute concurrently in parallel during asyncio.gather()
-                      if (currentStageIndex >= 7 || (latestEvent && latestEvent.status === "complete")) {
+                      if (currentStageIndex >= 7 || latestEvent?.status === "complete") {
                         isCompleted = true;
                       } else if (currentStageIndex >= 3) {
                         isCurrent = true;
@@ -341,7 +341,7 @@ export const LiveAnalysisOverlay: React.FC<LiveAnalysisOverlayProps> = ({
                         isPending = true;
                       }
                     } else {
-                      isCompleted = currentStageIndex > stepIndex || (latestEvent && latestEvent.status === "complete" && stepIndex < 8);
+                      isCompleted = currentStageIndex > stepIndex || Boolean(latestEvent?.status === "complete" && stepIndex < 8);
                       isCurrent = currentStageIndex === stepIndex;
                       isPending = currentStageIndex < stepIndex;
                     }
