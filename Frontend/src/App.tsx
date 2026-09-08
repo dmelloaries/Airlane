@@ -419,7 +419,7 @@ export default function App() {
         setIsStreaming(false);
         setActiveView("input");
         setErrorMessage(
-          `BVLOS Route Analysis Error: ${err}. If running on Render free tier, the backend may be waking up from sleep (which takes ~30-50 seconds). Please wait a moment and try again.`
+          `BVLOS Route Analysis Error: ${err} Please try again.`
         );
       },
     });
