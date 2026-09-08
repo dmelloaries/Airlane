@@ -231,37 +231,53 @@ def corridor_tier(
     else:
         data_list = census_data_list or []
 
-    tier_rank_map = {"Tier 1": 1, "Tier 2": 2, "Tier 3": 3, "Tier 4": 4, "Tier 5": 5}
+    tier_rank_map = {"Tier 1": 1, "Tier 2": 2, "Tier 3": 3, "Tier 4": 4, "Tier 5": 5, "UNKNOWN": 99}
     highest_rank = 0
-    highest_tier_name = "Tier 1"
+    highest_tier_name = "UNKNOWN" if not data_list else "Tier 1"
     worst_point_info = None
     max_density = 0.0
-    tier_counts = {"Tier 1": 0, "Tier 2": 0, "Tier 3": 0, "Tier 4": 0, "Tier 5": 0}
+    tier_counts = {"Tier 1": 0, "Tier 2": 0, "Tier 3": 0, "Tier 4": 0, "Tier 5": 0, "UNKNOWN": 0}
+    has_valid_density = False
 
     for idx, c in enumerate(data_list):
-        t_name = c.get("tier", "Tier 1")
-        density = float(c.get("density_sq_mi", 0.0))
-        rank = tier_rank_map.get(t_name, 1)
+        t_name = c.get("tier", "UNKNOWN")
+        raw_density = c.get("density_sq_mi")
+        density = float(raw_density) if raw_density is not None else None
+        rank = tier_rank_map.get(t_name, 99)
 
         tier_counts[t_name] = tier_counts.get(t_name, 0) + 1
 
-        if density > max_density:
-            max_density = density
+        if density is not None:
+            has_valid_density = True
+            if density > max_density:
+                max_density = density
 
         if rank > highest_rank:
             highest_rank = rank
             highest_tier_name = t_name
-            worst_point_info = c
+            worst_point_info = dict(c)
             worst_point_info["sample_index"] = idx
+
+    # If all points failed or were UNKNOWN, ensure dominant_tier is UNKNOWN
+    all_unknown = (tier_counts.get("UNKNOWN", 0) == len(data_list)) if data_list else True
+    if all_unknown or not has_valid_density:
+        highest_tier_name = "UNKNOWN"
+        highest_rank = 99
+        tier_display_name = "Unassessed Ground Risk"
+        tier_desc = "Census data unavailable for route. Cannot assume Tier 1 rural under Part 108."
+    else:
+        tier_display_name = worst_point_info.get("tier_name", "Rural") if worst_point_info else "Rural"
+        tier_desc = worst_point_info.get("tier_description", "") if worst_point_info else ""
 
     return {
         "dominant_tier": highest_tier_name,
         "tier_rank": highest_rank,
-        "tier_name": worst_point_info.get("tier_name", "Rural") if worst_point_info else "Rural",
-        "description": worst_point_info.get("tier_description", "") if worst_point_info else "",
-        "max_density_sq_mi": round(max_density, 1),
+        "tier_name": tier_display_name,
+        "description": tier_desc,
+        "max_density_sq_mi": round(max_density, 1) if has_valid_density else None,
         "worst_sample_index": worst_point_info.get("sample_index", 0) if worst_point_info else 0,
         "tier_histogram": tier_counts,
+        "status": "UNKNOWN" if all_unknown else ("DEGRADED" if tier_counts.get("UNKNOWN", 0) > 0 else "OK"),
         "source": "US Census Bureau ACS5"
     }
 
@@ -582,7 +598,7 @@ def compare_corridors(
     detailed rejection reasons for all losing candidate routes. Includes completeness/confidence metrics.
     Pure, deterministic function: same input → byte-identical output.
     """
-    tier_rank_map = {"Tier 1": 1, "Tier 2": 2, "Tier 3": 3, "Tier 4": 4, "Tier 5": 5}
+    tier_rank_map = {"Tier 1": 1, "Tier 2": 2, "Tier 3": 3, "Tier 4": 4, "Tier 5": 5, "UNKNOWN": 99}
 
     # Normalize input argument format
     eval_dict: Dict[str, Dict[str, Any]] = {}
@@ -608,8 +624,8 @@ def compare_corridors(
         haz_exposure = data.get("hazard_exposure", {})
         h_score = haz_exposure.get("hazard_exposure_score", 0.0)
         t_obj = data.get("tier", {})
-        t_dominant = t_obj.get("dominant_tier", "Tier 1")
-        t_rank = tier_rank_map.get(t_dominant, 1)
+        t_dominant = t_obj.get("dominant_tier", "UNKNOWN")
+        t_rank = tier_rank_map.get(t_dominant, 99)
 
         obstacles = data.get("obstacles", [])
         obs_count = len(obstacles)
@@ -732,6 +748,11 @@ def compare_corridors(
         f"{winner['name']} selected as optimal BVLOS flight corridor: "
         f"lowest ground risk ({winner['tier']}) and lowest hazard exposure score ({winner['hazard_score']:.1f})."
     )
+    if winner.get("tier") == "UNKNOWN":
+        comparison_reason = (
+            f"{winner['name']} selected as candidate corridor, but Part 108 ground risk is UNASSESSED "
+            f"due to Census telemetry failure. Hazard exposure score: {winner['hazard_score']:.1f}."
+        )
     if winner["data_insufficient"]:
         comparison_reason = (
             f"WARNING: {winner['name']} selected by default — ALL corridors returned insufficient data. "

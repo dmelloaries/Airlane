@@ -19,6 +19,7 @@ const getGroundRiskLevel = (tierStr: string, existingLevel?: string): string => 
     return existingLevel.toUpperCase();
   }
   const t = (tierStr || "").toLowerCase();
+  if (t.includes("unknown")) return "UNASSESSED";
   if (t.includes("tier 5") || t.includes("5")) return "MAXIMUM";
   if (t.includes("tier 4") || t.includes("4")) return "HIGH";
   if (t.includes("tier 3") || t.includes("3")) return "ELEVATED";
@@ -33,9 +34,7 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
   onSelectObject,
   traceEvents = [],
 }) => {
-  const [selectedCorridor, setSelectedCorridor] = useState<"corridor_a" | "corridor_b" | "corridor_c">(
-    result.safety_case.recommended_corridor || "corridor_a"
-  );
+  const [selectedCorridor, setSelectedCorridor] = useState<"corridor_a" | "corridor_b" | "corridor_c">("corridor_a");
   const [expandedRisk, setExpandedRisk] = useState<number | null>(0);
   const [showExportModal, setShowExportModal] = useState<boolean>(false);
   const [activeVisualizer, setActiveVisualizer] = useState<"digital_twin" | "gis_map" | "split">("split");
@@ -45,9 +44,8 @@ export const VerdictDashboard: React.FC<VerdictDashboardProps> = ({
   const confidencePct = Math.round(sc.confidence_score * 100);
 
   // Data failure detection — sc.data_failure_warning is set by backend when Mireye
-  // returns no usable data for the recommended corridor. This is the primary gate
-  // that prevents all false VERIFIED/RECOMMENDED output.
-  const hasDataFailure = Boolean(sc.data_failure_warning || sc.data_insufficient);
+  // returns no usable data for the recommended corridor, or when ground risk is UNKNOWN.
+  const hasDataFailure = Boolean(sc.data_failure_warning || sc.data_insufficient || sc.part108_tier === "UNKNOWN");
 
   const envRiskA = computed?.corridor_a?.environmental_risk;
   const envRiskB = computed?.corridor_b?.environmental_risk;

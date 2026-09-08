@@ -85,7 +85,7 @@ def _build_compact_prompt_payload(computed_data: Dict[str, Any]) -> Dict[str, An
         compact[c_key] = {
             "name": c_val.get("name", c_key),
             "distance_m": c_val.get("total_distance_m", 0.0),
-            "part108_tier": tier.get("dominant_tier", "Tier 1"),
+            "part108_tier": tier.get("dominant_tier", "UNKNOWN"),
             "max_density_sq_mi": tier.get("max_density_sq_mi", 0.0),
             "hazard_score": haz.get("hazard_exposure_score", 0.0),
             "min_transmission_m": haz.get("min_transmission_distance_m", 9999.0),
@@ -198,7 +198,7 @@ def _build_deterministic_fallback(computed_data: Dict[str, Any]) -> Dict[str, An
 
     corr_info = computed_data.get(recommended, {})
     tier_info = corr_info.get("tier", {})
-    tier = tier_info.get("dominant_tier", "Tier 1")
+    tier = tier_info.get("dominant_tier", "UNKNOWN")
     obstacles = corr_info.get("obstacles", [])
     landing_zones = corr_info.get("landing_zones", [])
     env_info = corr_info.get("environmental_risk", {}) or corr_info.get("environmental", {})
@@ -255,6 +255,11 @@ def _build_deterministic_fallback(computed_data: Dict[str, Any]) -> Dict[str, An
                     "category": "POPULATION",
                     "description": f"[{other_name}] Operates in higher ground risk {other_tier} (peak density {other_density:.0f} people/sq mi)."
                 })
+            elif other_tier == "UNKNOWN":
+                structured_risks.append({
+                    "category": "POPULATION",
+                    "description": f"[{other_name}] Unassessed Part 108 ground risk due to Census telemetry failure."
+                })
             other_env = other_c.get("environmental_risk", {}) or other_c.get("environmental", {})
             if other_env.get("intersects_critical_habitat"):
                 structured_risks.append({
@@ -285,12 +290,12 @@ def _build_deterministic_fallback(computed_data: Dict[str, Any]) -> Dict[str, An
 
     # Build base result
     base_confidence = 0.95
-    if silent_failure:
-        base_confidence = 0.30  # Hard cap — cannot claim confidence on absent data
+    if silent_failure or tier == "UNKNOWN":
+        base_confidence = 0.30  # Hard cap — cannot claim confidence on absent or unassessed ground data
 
     verdict_title = f"Approved Route: {rec_name} — Part 108 {tier}"
-    if silent_failure:
-        verdict_title = f"INSUFFICIENT DATA — {rec_name} (Safety Case Invalid)"
+    if silent_failure or tier == "UNKNOWN":
+        verdict_title = f"INSUFFICIENT DATA — {rec_name} (Safety Case Invalid: Unassessed Ground Risk)" if tier == "UNKNOWN" else f"INSUFFICIENT DATA — {rec_name} (Safety Case Invalid)"
 
     result = {
         "recommended_corridor": recommended,

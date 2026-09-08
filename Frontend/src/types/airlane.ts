@@ -64,9 +64,9 @@ export interface LandingZone {
 }
 
 export interface TierEvaluation {
-  dominant_tier: "Tier 1" | "Tier 2" | "Tier 3" | "Tier 4" | "Tier 5";
+  dominant_tier: "Tier 1" | "Tier 2" | "Tier 3" | "Tier 4" | "Tier 5" | "UNKNOWN" | string;
   dominant_tier_rank: number;
-  max_density_sq_mi: number;
+  max_density_sq_mi: number | null;
   points_evaluated: number;
   risk_level?: string;
   source?: string;
@@ -178,7 +178,7 @@ export interface SafetyCase {
   recommended_corridor: "corridor_a" | "corridor_b" | "corridor_c";
   recommended_name: string;
   verdict_title: string;
-  part108_tier: "Tier 1" | "Tier 2" | "Tier 3" | "Tier 4" | "Tier 5";
+  part108_tier: "Tier 1" | "Tier 2" | "Tier 3" | "Tier 4" | "Tier 5" | "UNKNOWN" | string;
   ground_risk_level: string;
   confidence_score: number;
   primary_justification: string;

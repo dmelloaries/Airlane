@@ -123,12 +123,84 @@ def verify_provenance_and_confidence(
     if has_total_subsystem_failure or reasoning_output.get("data_insufficient"):
         adjusted_confidence = min(adjusted_confidence, 0.30)
 
+    mireye_failed_count = 0
+    mireye_total_count = 0
+    habitat_failed_count = 0
+    habitat_total_count = 0
+
+    for corr_key in ["corridor_a", "corridor_b", "corridor_c"]:
+        c_data = computed_data.get(corr_key, {})
+        m_list = c_data.get("mireye_raw", [])
+        mireye_total_count += len(m_list)
+        for m in m_list:
+            habitat_total_count += 1
+            if not isinstance(m, dict) or str(m.get("status", "")).upper() in ("UNKNOWN", "FAILED"):
+                mireye_failed_count += 1
+                habitat_failed_count += 1
+            else:
+                sub_d = m.get("nearest_substation_distance_m", {})
+                trans_d = m.get("nearest_transmission_line_distance_m", {})
+                sub_st = str(sub_d.get("status", "")).upper() if isinstance(sub_d, dict) else ""
+                trans_st = str(trans_d.get("status", "")).upper() if isinstance(trans_d, dict) else ""
+                if (sub_st in ("UNKNOWN", "FAILED") or sub_d is None) and (trans_st in ("UNKNOWN", "FAILED") or trans_d is None):
+                    mireye_failed_count += 1
+
+                hab = m.get("intersects_critical_habitat")
+                if hab is None or (isinstance(hab, dict) and str(hab.get("status", "")).upper() in ("UNKNOWN", "FAILED")):
+                    habitat_failed_count += 1
+
+    if (mireye_total_count > 0 and mireye_failed_count == mireye_total_count) or len(insufficient_data_corridors) == 3:
+        subsystem_failures.append("Mireye Infrastructure (EIA/HIFLD)")
+
+    def _eval_citation(field_name: str, source_name: str, total: int, failed: int, force_failed: bool = False) -> Dict[str, str]:
+        if force_failed or total == 0 or failed >= total:
+            return {"field": field_name, "source": source_name, "status": "FAILED", "confidence": "LOW"}
+        elif failed > 0:
+            return {"field": field_name, "source": source_name, "status": "DEGRADED", "confidence": "MEDIUM"}
+        else:
+            return {"field": field_name, "source": source_name, "status": "VERIFIED", "confidence": "HIGH"}
+
+    mireye_force_fail = bool(len(insufficient_data_corridors) == 3 or "Mireye Infrastructure (EIA/HIFLD)" in subsystem_failures)
+    faa_force_fail = "FAA UASFM Airspace" in subsystem_failures
+    census_force_fail = "US Census Ground Risk" in subsystem_failures
+    noaa_force_fail = "NOAA Wind METAR Stream" in subsystem_failures
+
     provenance_citations = [
-        {"field": "Substation & Transmission Line Distances", "source": "Mireye Earth API (/v1/fetch - EIA/HIFLD)", "status": "VERIFIED", "confidence": "HIGH"},
-        {"field": "USFWS Critical Habitat & Species", "source": "US Fish & Wildlife Service (USFWS_CRITHAB via Mireye)", "status": "VERIFIED", "confidence": "HIGH"},
-        {"field": "Airspace Ceilings & Class", "source": "FAA UAS Facility Map (ArcGIS)", "status": "VERIFIED", "confidence": "HIGH"},
-        {"field": "Ground Population Density & Tiers", "source": "US Census Bureau ACS5 (Tract FIPS)", "status": "VERIFIED", "confidence": "HIGH"},
-        {"field": "Surface Wind & METAR", "source": "NOAA Aviation Weather API", "status": "VERIFIED", "confidence": "HIGH"}
+        _eval_citation(
+            "Substation & Transmission Line Distances",
+            "Mireye Earth API (/v1/fetch - EIA/HIFLD)",
+            mireye_total_count,
+            mireye_failed_count,
+            force_failed=mireye_force_fail
+        ),
+        _eval_citation(
+            "USFWS Critical Habitat & Species",
+            "US Fish & Wildlife Service (USFWS_CRITHAB via Mireye)",
+            habitat_total_count,
+            habitat_failed_count,
+            force_failed=mireye_force_fail
+        ),
+        _eval_citation(
+            "Airspace Ceilings & Class",
+            "FAA UAS Facility Map (ArcGIS)",
+            faa_total_count,
+            faa_failed_count,
+            force_failed=faa_force_fail
+        ),
+        _eval_citation(
+            "Ground Population Density & Tiers",
+            "US Census Bureau ACS5 (Tract FIPS)",
+            census_total_count,
+            census_failed_count,
+            force_failed=census_force_fail
+        ),
+        _eval_citation(
+            "Surface Wind & METAR",
+            "NOAA Aviation Weather API",
+            3,
+            noaa_failed_count,
+            force_failed=noaa_force_fail
+        )
     ]
 
     reasoning_output["confidence_score"] = adjusted_confidence

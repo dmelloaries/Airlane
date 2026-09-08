@@ -32,16 +32,22 @@ def load_tier_rules() -> list:
     return []
 
 
-def classify_tier(density_sq_mi: float) -> Dict[str, Any]:
+def classify_tier(density_sq_mi: Any) -> Dict[str, Any]:
     """Map population density (people/sq mi) to Part 108 risk tier."""
+    if density_sq_mi is None or not isinstance(density_sq_mi, (int, float)) or density_sq_mi < 0:
+        return {
+            "tier": "UNKNOWN",
+            "name": "Unassessed Ground Risk",
+            "description": "Population density unknown or unverified. Cannot assume Tier 1 rural under Part 108."
+        }
     tiers = load_tier_rules()
     for t in tiers:
         if t["min_density_sq_mi"] <= density_sq_mi < t["max_density_sq_mi"]:
             return t
     return {
-        "tier": "Tier 1",
-        "name": "Sparsely Populated / Rural",
-        "description": "Default rural classification"
+        "tier": "Tier 5",
+        "name": "Dense Urban Core",
+        "description": "Exceeds standard density thresholds. Maximum ground risk."
     }
 
 
@@ -167,7 +173,7 @@ def geocode_census_tract(lat: float, lng: float, point_info: str = "") -> Dict[s
         "tract_code": "",
         "tract_fips": "UNKNOWN",
         "arealand_sq_m": 0,
-        "land_area_sq_mi": 1.5,
+        "land_area_sq_mi": 0.0,
         "source": "US Census Geocoder API",
         "status": "UNKNOWN"
     }
@@ -191,15 +197,14 @@ def fetch_population_density_and_tier(lat: float, lng: float, idx: int = 0, tota
     # Step 1: Census Geocoder
     geo = geocode_census_tract(lat, lng, point_info=point_info)
     if geo["status"] != "OK" or not geo["tract_code"]:
-        fallback_tier = classify_tier(250.0)
         return {
-            "population": 500,
-            "density_sq_mi": 250.0,
-            "tier": fallback_tier["tier"],
-            "tier_name": fallback_tier["name"],
-            "tier_description": fallback_tier.get("description", ""),
+            "population": None,
+            "density_sq_mi": None,
+            "tier": "UNKNOWN",
+            "tier_name": "Unassessed Ground Risk",
+            "tier_description": "Census Geocoder lookup failed; cannot assume rural Tier 1 under Part 108.",
             "tract_fips": "UNKNOWN",
-            "source": "US Census Bureau (Fallback)",
+            "source": "US Census Bureau (Unavailable)",
             "status": "UNKNOWN"
         }
 
@@ -274,15 +279,14 @@ def fetch_population_density_and_tier(lat: float, lng: float, idx: int = 0, tota
     except Exception as e:
         print(f"  [Census ACS5 Warning] {e} at ({lat:.4f}, {lng:.4f})", flush=True)
 
-    fallback_tier = classify_tier(350.0)
     return {
-        "population": 700,
-        "density_sq_mi": 350.0,
-        "tier": fallback_tier["tier"],
-        "tier_name": fallback_tier["name"],
-        "tier_description": fallback_tier.get("description", ""),
-        "tract_fips": geo["tract_fips"],
-        "source": "US Census Bureau (Estimated)",
+        "population": None,
+        "density_sq_mi": None,
+        "tier": "UNKNOWN",
+        "tier_name": "Unassessed Ground Risk",
+        "tier_description": f"Census ACS5 population query failed for tract {geo.get('tract_fips', 'UNKNOWN')}; cannot assume rural Tier 1 under Part 108.",
+        "tract_fips": geo.get("tract_fips", "UNKNOWN"),
+        "source": "US Census Bureau (Unavailable)",
         "status": "UNKNOWN"
     }
 
@@ -320,13 +324,13 @@ def fetch_batch_population_density(points: List[Tuple[float, float]], max_worker
                     results[idx] = future.result()
                 except Exception as exc:
                     results[idx] = {
-                        "population": 0,
-                        "density_sq_mi": 0.0,
-                        "tier": "Tier 1",
-                        "tier_name": "Rural",
-                        "tier_description": f"Error: {exc}",
+                        "population": None,
+                        "density_sq_mi": None,
+                        "tier": "UNKNOWN",
+                        "tier_name": "Unassessed Ground Risk",
+                        "tier_description": f"Census worker error: {exc}",
                         "tract_fips": "UNKNOWN",
-                        "source": "US Census Bureau",
+                        "source": "US Census Bureau (Unavailable)",
                         "status": "UNKNOWN"
                     }
 

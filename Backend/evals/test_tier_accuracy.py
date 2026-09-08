@@ -42,6 +42,14 @@ def test_tier_classification():
     print(f"\nTier Classification Accuracy: {accuracy:.1f}% ({passed}/{len(test_cases)})")
     assert passed == len(test_cases), "Tier classification accuracy must be 100%"
 
+    # Assert fail-safe handling: lookup failure or invalid density must never default to Tier 1
+    fail_safe_cases = [None, -1.0, -100.0, "invalid"]
+    for val in fail_safe_cases:
+        res = classify_tier(val)
+        actual = res.get("tier")
+        assert actual == "UNKNOWN", f"Fail-safe violation: {val!r} mapped to {actual} instead of UNKNOWN"
+        print(f"  ✓ Fail-safe input {val!r} correctly mapped to UNKNOWN (not Tier 1)")
+
 
 if __name__ == "__main__":
     test_tier_classification()
